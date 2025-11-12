@@ -1,0 +1,143 @@
+<ion-header [translucent]="true">
+  <ion-toolbar class="gradient-header">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" class="back-button"></ion-back-button>
+    </ion-buttons>
+    <ion-title class="header-title">
+      <ion-icon name="person-circle" class="title-icon"></ion-icon>
+      Perfil
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="gradient-background">
+  <div class="profile-container">
+    
+    <!-- Card de Informações do Usuário -->
+    <ion-card class="user-card">
+      <ion-card-header class="user-header">
+        <div class="avatar-section">
+          <ion-avatar class="user-avatar">
+            <ion-icon name="person" class="avatar-icon"></ion-icon>
+          </ion-avatar>
+          <div class="user-info">
+            <ion-card-title class="user-name">{{user?.name}}</ion-card-title>
+            <ion-card-subtitle class="user-email">{{user?.email}}</ion-card-subtitle>
+          </div>
+        </div>
+      </ion-card-header>
+    </ion-card>
+
+    <!-- Formulário de Perfil -->
+    <ion-card class="form-card">
+      <ion-card-header>
+        <ion-card-title class="form-title">
+          <ion-icon name="create" class="title-icon"></ion-icon>
+          Informações Pessoais
+        </ion-card-title>
+        <ion-card-subtitle>Atualize seus dados pessoais</ion-card-subtitle>
+      </ion-card-header>
+
+      <ion-card-content>
+        <form (ngSubmit)="saveUserProfile()" class="profile-form">
+          
+          <div class="form-group">
+            <ion-item class="custom-input">
+              <ion-icon name="briefcase" slot="start" class="input-icon"></ion-icon>
+              <ion-label position="stacked" class="input-label">Ocupação</ion-label>
+              <ion-input 
+                [(ngModel)]="profile.occupation" 
+                name="occupation"
+                placeholder="Sua profissão ou ocupação"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <div class="form-group">
+            <ion-item class="custom-input">
+              <ion-icon name="calendar" slot="start" class="input-icon"></ion-icon>
+              <ion-label position="stacked" class="input-label">Data de nascimento</ion-label>
+              <ion-input 
+                type="date" 
+                [(ngModel)]="profile.birthDate" 
+                name="birthdate"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <div class="form-group">
+            <ion-item class="custom-input">
+              <ion-icon name="call" slot="start" class="input-icon"></ion-icon>
+              <ion-label position="stacked" class="input-label">Telefone</ion-label>
+              <ion-input 
+                type="tel" 
+                [(ngModel)]="profile.phone" 
+                name="phone"
+                placeholder="(00) 00000-0000"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <div class="form-group">
+            <ion-item class="custom-input">
+              <ion-icon name="heart" slot="start" class="input-icon"></ion-icon>
+              <ion-label position="stacked" class="input-label">Estado civil</ion-label>
+              <ion-select 
+                [(ngModel)]="profile.maritalStatus" 
+                name="maritalStatus"
+                interface="action-sheet"
+                class="custom-select">
+                <ion-select-option value="solteiro">Solteiro(a)</ion-select-option>
+                <ion-select-option value="casado">Casado(a)</ion-select-option>
+                <ion-select-option value="divorciado">Divorciado(a)</ion-select-option>
+                <ion-select-option value="viuvo">Viúvo(a)</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+
+          <div class="form-group">
+            <ion-item class="custom-input textarea-item">
+              <ion-icon name="information-circle" slot="start" class="input-icon"></ion-icon>
+              <ion-label position="stacked" class="input-label">Informações adicionais</ion-label>
+              <ion-textarea 
+                [(ngModel)]="profile.extraInfo" 
+                name="extraInfo"
+                placeholder="Conte um pouco mais sobre você..."
+                rows="4"
+                class="input-field custom-textarea">
+              </ion-textarea>
+            </ion-item>
+          </div>
+
+          <ion-button 
+            expand="block" 
+            type="submit" 
+            class="save-button"
+            [disabled]="loading">
+            
+            <ion-spinner *ngIf="loading" name="crescent" class="button-spinner"></ion-spinner>
+            <span *ngIf="!loading">
+              <ion-icon name="save" slot="start"></ion-icon>
+              Salvar Alterações
+            </span>
+          </ion-button>
+
+        </form>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Feedback de sucesso -->
+    <div *ngIf="showSuccess" class="success-message">
+      <ion-card class="success-card">
+        <ion-card-content>
+          <ion-icon name="checkmark-circle" class="success-icon"></ion-icon>
+          <p>Perfil salvo com sucesso!</p>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+  </div>
+</ion-content>

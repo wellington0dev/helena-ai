@@ -1,0 +1,72 @@
+<ion-content [fullscreen]="true" class="gradient-background">
+  <div class="login-container">
+    
+    <div class="welcome-section">
+      <ion-card class="welcome-card">
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="log-in" class="welcome-icon"></ion-icon>
+            Bem-vindo de volta!
+          </ion-card-title>
+          <ion-card-subtitle>Faça login para continuar</ion-card-subtitle>
+        </ion-card-header>
+      </ion-card>
+    </div>
+
+    <ion-card class="login-card">
+      <ion-card-content>
+        <div class="form-container">
+          
+          <div class="input-group">
+            <ion-item class="custom-input">
+              <ion-icon name="mail" slot="start" class="input-icon"></ion-icon>
+              <ion-input 
+                [(ngModel)]="email" 
+                placeholder="Email" 
+                type="email"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <div class="input-group">
+            <ion-item class="custom-input">
+              <ion-icon name="lock-closed" slot="start" class="input-icon"></ion-icon>
+              <ion-input 
+                [(ngModel)]="password" 
+                placeholder="Senha" 
+                type="password"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <ion-button 
+            expand="block" 
+            (click)="login()" 
+            [disabled]="loading"
+            class="login-button">
+            
+            <ion-spinner *ngIf="loading" name="crescent" class="button-spinner"></ion-spinner>
+            <span *ngIf="!loading">Entrar</span>
+          </ion-button>
+
+          <ion-button 
+            expand="block" 
+            fill="clear" 
+            routerLink="/register"
+            class="register-button">
+            Criar conta
+          </ion-button>
+
+          <p class="error-message" *ngIf="errorMsg">
+            <ion-icon name="warning"></ion-icon>
+            {{ errorMsg }}
+          </p>
+
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+  </div>
+</ion-content>

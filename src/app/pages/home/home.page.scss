@@ -1,0 +1,244 @@
+:host {
+  --primary-light: #b21ab2; // --ion-color-primary-tint
+  --primary-dark: #950095; // --ion-color-primary-shade
+  --primary-base: #a900a9; // --ion-color-primary
+  --secondary-color: #f7daef; // --ion-color-secondary
+  --card-background: rgba(255, 255, 255, 0.95);
+}
+
+.gradient-header {
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+
+  .header-title {
+    color: white;
+    font-weight: 600;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .title-icon {
+      font-size: 1.4rem;
+    }
+  }
+
+  .logout-btn {
+    --color: white;
+    --background-hover: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.gradient-background {
+  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+}
+
+.container {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.welcome-section {
+  margin-bottom: 24px;
+
+  .welcome-card {
+    background: var(--card-background);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--secondary-color);
+
+    ion-card-header {
+      text-align: center;
+      padding: 24px 16px;
+    }
+
+    ion-card-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+
+      .welcome-icon {
+        font-size: 1.8rem;
+      }
+    }
+
+    ion-card-subtitle {
+      font-size: 1rem;
+      color: var(--ion-color-medium);
+      margin-top: 8px;
+    }
+  }
+}
+
+.nav-card {
+  background: transparent;
+  box-shadow: none;
+
+  .nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    padding: 8px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 24px;
+    }
+
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+  }
+
+  .nav-item {
+    background: var(--card-background);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(169, 0, 169, 0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    margin: 0;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(169, 0, 169, 0.2);
+      border-color: var(--secondary-color);
+    }
+
+    &:active {
+      transform: translateY(-2px);
+    }
+
+    .nav-item-content {
+      text-align: center;
+      padding: 16px;
+      width: 100%;
+    }
+
+    .icon-wrapper {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 12px;
+      background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(169, 0, 169, 0.3);
+    }
+
+    .nav-icon {
+      font-size: 1.8rem;
+      color: white;
+    }
+
+    // Efeito de hover no ícone
+    &:hover .icon-wrapper {
+      transform: scale(1.1);
+      box-shadow: 0 6px 16px rgba(169, 0, 169, 0.4);
+    }
+  }
+}
+
+// Animações de entrada
+.nav-item {
+  animation: fadeInUp 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(20px);
+
+  @for $i from 1 through 12 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Efeito de brilho sutil nos itens
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary-light), transparent);
+  border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.nav-item:hover::before {
+  opacity: 1;
+}
+
+// Modo escuro
+@media (prefers-color-scheme: dark) {
+  :host {
+    --card-background: rgba(47, 47, 47, 0.95); // --ion-color-dark
+  }
+
+  .gradient-background {
+    --background: linear-gradient(135deg, var(--ion-color-dark) 0%, #3a1a3a 50%, #2d1b2d 100%);
+  }
+
+  .welcome-card {
+    background: rgba(47, 47, 47, 0.95);
+
+    ion-card-title {
+      color: var(--secondary-color);
+
+      .welcome-icon {
+        color: var(--primary-light);
+      }
+    }
+
+    ion-card-subtitle {
+      color: #a0a0a0;
+    }
+  }
+
+  .nav-item {
+    background: rgba(47, 47, 47, 0.95);
+
+    &:hover {
+      background: rgba(60, 60, 60, 0.95);
+    }
+  }
+}
+
+// Loading sutil
+.nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(247, 218, 239, 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.nav-item:hover::after {
+  left: 100%;
+}

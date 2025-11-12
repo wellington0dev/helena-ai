@@ -1,0 +1,105 @@
+<ion-content [fullscreen]="true" class="gradient-background">
+  <div class="register-container">
+    
+    <div class="welcome-section">
+      <ion-card class="welcome-card">
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="person-circle" class="welcome-icon"></ion-icon>
+            Junte-se a nós!
+          </ion-card-title>
+          <ion-card-subtitle>Crie sua conta para começar</ion-card-subtitle>
+        </ion-card-header>
+      </ion-card>
+    </div>
+
+    <ion-card class="register-card">
+      <ion-card-content>
+        <div class="form-container">
+          
+          <div class="input-group">
+            <ion-item class="custom-input">
+              <ion-icon name="mail" slot="start" class="input-icon"></ion-icon>
+              <ion-input 
+                [(ngModel)]="email" 
+                placeholder="Email" 
+                type="email"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
+          <div class="input-group">
+            <ion-item class="custom-input">
+              <ion-icon name="lock-closed" slot="start" class="input-icon"></ion-icon>
+              <ion-input 
+                [(ngModel)]="password" 
+                placeholder="Senha" 
+                type="password"
+                (ionInput)="password = $event.detail.value!"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+            
+            <!-- Indicador de força da senha -->
+            <div *ngIf="password" class="password-strength" [class]="getPasswordStrength()">
+              <span *ngIf="getPasswordStrength() === 'weak'">Senha fraca</span>
+              <span *ngIf="getPasswordStrength() === 'medium'">Senha média</span>
+              <span *ngIf="getPasswordStrength() === 'strong'">Senha forte</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <ion-item class="custom-input" [class.valid]="passwordsMatch() && confirmPassword" [class.invalid]="!passwordsMatch() && confirmPassword">
+              <ion-icon 
+                [name]="passwordsMatch() && confirmPassword ? 'checkmark-circle' : 'lock-closed'" 
+                slot="start" 
+                class="input-icon"
+                [class.valid]="passwordsMatch() && confirmPassword"
+                [class.invalid]="!passwordsMatch() && confirmPassword">
+              </ion-icon>
+              <ion-input 
+                [(ngModel)]="confirmPassword" 
+                placeholder="Confirmar Senha" 
+                type="password"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+            
+            <!-- Mensagem de confirmação -->
+            <div *ngIf="confirmPassword" class="password-match" [class.valid]="passwordsMatch()" [class.invalid]="!passwordsMatch()">
+              <ion-icon [name]="passwordsMatch() ? 'checkmark' : 'close'"></ion-icon>
+              {{ passwordsMatch() ? 'Senhas coincidem' : 'Senhas não coincidem' }}
+            </div>
+          </div>
+
+          <ion-button 
+            expand="block" 
+            (click)="register()" 
+            [disabled]="loading || !isFormValid()"
+            class="register-button">
+            
+            <ion-spinner *ngIf="loading" name="crescent" class="button-spinner"></ion-spinner>
+            <span *ngIf="!loading">Criar Conta</span>
+          </ion-button>
+
+          <ion-button 
+            expand="block" 
+            fill="clear" 
+            routerLink="/login"
+            class="login-button">
+            <ion-icon name="log-in" slot="start"></ion-icon>
+            Já tenho uma conta
+          </ion-button>
+
+          <p class="error-message" *ngIf="errorMsg">
+            <ion-icon name="warning"></ion-icon>
+            {{ errorMsg }}
+          </p>
+
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+  </div>
+</ion-content>

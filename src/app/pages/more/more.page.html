@@ -1,0 +1,107 @@
+<ion-header [translucent]="true">
+  <ion-toolbar class="gradient-header">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" class="back-button"></ion-back-button>
+    </ion-buttons>
+    <ion-title class="header-title">
+      <ion-icon name="information-circle" class="title-icon"></ion-icon>
+      Sobre a Helena
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="more-background">
+  <div class="container">
+    
+    <!-- Cards Informativos -->
+    <div class="cards-section">
+      <ion-card class="info-card">
+        <ion-card-header class="card-header">
+          <ion-icon name="sparkles" class="card-icon"></ion-icon>
+          <ion-card-title class="card-title">Quem é a Helena?</ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="card-content">
+          <ion-text>
+            A Helena nasceu para ser sua assistente virtual pessoal, 
+            oferecendo suporte inteligente e personalizado para suas 
+            necessidades diárias.
+          </ion-text>
+        </ion-card-content>
+      </ion-card>
+
+      <ion-card class="info-card">
+        <ion-card-header class="card-header">
+          <ion-icon name="flash" class="card-icon"></ion-icon>
+          <ion-card-title class="card-title">O que pode fazer?</ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="card-content">
+          <ion-text>
+            Ajuda a organizar suas ideias, elaborar conteúdos com embasamento 
+            em pesquisas e oferecer suporte personalizado para suas atividades.
+          </ion-text>
+        </ion-card-content>
+      </ion-card>
+
+      <ion-card class="info-card">
+        <ion-card-header class="card-header">
+          <ion-icon name="rocket" class="card-icon"></ion-icon>
+          <ion-card-title class="card-title">Futuro do Projeto</ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="card-content">
+          <ion-text>
+            Pretendemos trazer novas funcionalidades que ajudarão em suas 
+            atividades diárias e profissionais, sempre evoluindo para 
+            oferecer a melhor experiência.
+          </ion-text>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Card de Doação -->
+    <div class="donation-section">
+      <ion-card class="donation-card">
+        <ion-card-header class="donation-header">
+          <ion-icon name="heart" class="donation-icon"></ion-icon>
+          <ion-card-title class="donation-title">Gostaria de ajudar?</ion-card-title>
+          <ion-card-subtitle class="donation-subtitle">Apoie o projeto</ion-card-subtitle>
+        </ion-card-header>
+        
+        <ion-card-content class="donation-content">
+          <ion-text>
+            Não pretendemos cobrar pelos serviços da Helena para o uso geral, 
+            mas temos custos para oferecer o melhor que este projeto pode proporcionar. 
+            Caso queira contribuir com nosso desenvolvimento, considere fazer uma doação.
+          </ion-text>
+          
+          <ion-button 
+            expand="block" 
+            class="donation-button"
+            href="https://nubank.com.br/cobrar/429ell/6914e070-e3f2-4bc6-a072-cc7aea96d76d"
+            target="_blank">
+            <ion-icon name="heart" slot="start"></ion-icon>
+            Fazer Doação
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Versão e Informações Adicionais -->
+    <div class="footer-section">
+      <ion-card class="footer-card">
+        <ion-card-content class="footer-content">
+          <div class="version-info">
+            <ion-icon name="logo-ionic" class="footer-icon"></ion-icon>
+            <span class="version-text">Helena Assistant v1.0</span>
+          </div>
+          <div class="footer-text">
+            Desenvolvido com 💜 para ajudar você
+          </div>
+          <div class="footer-text">
+            Criação de Wellington A. Reis
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+  </div>
+</ion-content>

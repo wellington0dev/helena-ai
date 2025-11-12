@@ -1,0 +1,123 @@
+<ion-header [translucent]="true">
+  <ion-toolbar class="gradient-header">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" class="back-button"></ion-back-button>
+    </ion-buttons>
+    <ion-title class="header-title">
+      <ion-icon name="chatbubbles" class="title-icon"></ion-icon>
+      Chat
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="chat-background" scrollEvents="true" (ionScroll)="onScroll($event)"
+  #chatContent>
+
+  @if (messages.length === 0) {
+  <div class="welcome-message">
+    <ion-card class="welcome-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="sparkles" class="welcome-icon"></ion-icon>
+          Olá! Sou a Helena
+        </ion-card-title>
+        <ion-card-subtitle>Sua assistente virtual inteligente</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <p>Estou aqui para ajudar você com:</p>
+        <ul>
+          <li>Dúvidas e informações</li>
+          <li>Análise de documentos</li>
+          <li>Suporte personalizado</li>
+          <li>E muito mais!</li>
+        </ul>
+        <p>Como posso ajudá-lo hoje?</p>
+      </ion-card-content>
+    </ion-card>
+  </div>
+  }
+
+  @if (messages.length > 0) {
+  <div class="message-container">
+    @for (msg of messages; track msg.datetime || $index; let i = $index) {
+    <div class="message-wrapper" [class.user-message]="msg.role !== 'Helena'"
+      [class.assistant-message]="msg.role === 'Helena'">
+
+      @if (isNewDay(i)) {
+      <div class="date-separator">
+        <span>{{ getDaySeparator(i) }}</span>
+      </div>
+      }
+
+      @if (msg.role === 'Helena') {
+      <div class="message-bubble assistant-bubble">
+        <div class="message-header">
+          <ion-avatar class="avatar">
+            <ion-icon name="sparkles" class="avatar-icon"></ion-icon>
+          </ion-avatar>
+          <span class="sender-name">Helena</span>
+          <span class="message-time">{{ getMessageTime(i) }}</span>
+        </div>
+        <div class="message-text">
+          {{ msg.text }}
+        </div>
+      </div>
+      }
+
+      @if (msg.role !== 'Helena') {
+      <div class="message-bubble user-bubble">
+        <div class="message-header user-header">
+          <span class="message-time">{{ getMessageTime(i) }}</span>
+          <span class="sender-name">Você</span>
+          <ion-avatar class="avatar user-avatar">
+            <ion-icon name="person" class="avatar-icon"></ion-icon>
+          </ion-avatar>
+        </div>
+        <div class="message-text">
+          {{ msg.text }}
+        </div>
+      </div>
+      }
+
+    </div>
+    }
+  </div>
+
+  @if (loading) {
+  <div class="typing-indicator">
+    <div class="typing-dots">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+  </div>
+  }
+
+  @if (showScrollButton) {
+  <div class="scroll-indicator" (click)="scrollToBottom()">
+    <ion-icon name="chevron-down" class="scroll-icon"></ion-icon>
+  </div>
+  }
+  }
+</ion-content>
+
+<ion-footer>
+  <ion-toolbar class="footer-toolbar">
+    <div class="input-container">
+      <ion-item class="message-input">
+        <ion-input [(ngModel)]="inputText" placeholder="Digite uma mensagem..." (keyup.enter)="sendMessage()"
+          class="custom-input" [disabled]="loading">
+        </ion-input>
+        <ion-button slot="end" (click)="sendMessage()" [disabled]="!inputText || loading" class="send-button">
+
+          @if (loading) {
+          <ion-spinner name="crescent" class="button-spinner"></ion-spinner>
+          }
+          @if (!loading) {
+          <ion-icon name="send" class="send-icon"></ion-icon>
+          }
+        </ion-button>
+      </ion-item>
+    </div>
+  </ion-toolbar>
+</ion-footer>
