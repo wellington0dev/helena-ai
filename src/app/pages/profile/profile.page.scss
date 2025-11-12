@@ -1,15 +1,75 @@
-// Variáveis CSS para cores do gradiente
+// Variáveis globais
 :host {
   --primary-light: #b21ab2;
   --primary-dark: #950095;
   --primary-base: #a900a9;
   --secondary-color: #f7daef;
   --card-background: rgba(255, 255, 255, 0.95);
+  --card-background-dark: rgba(47, 47, 47, 0.95);
+  --shadow-primary: 0 8px 32px rgba(169, 0, 169, 0.15);
+  --shadow-hover: 0 12px 40px rgba(169, 0, 169, 0.2);
+  --border-radius: 20px;
+  --input-height: 56px;
+  --button-height: 50px;
+  --avatar-size: 60px;
 }
 
-.gradient-header {
+// Mixins reutilizáveis
+@mixin gradient-header {
   --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+}
+
+@mixin gradient-background {
+  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+}
+
+@mixin gradient-button {
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
+  --background-activated: var(--primary-dark);
+  --border-radius: 12px;
+  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
+}
+
+@mixin card-base {
+  background: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-primary);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--secondary-color);
+}
+
+@mixin input-base {
+  --background: transparent;
+  --border-radius: 12px;
+  --border-color: var(--secondary-color);
+  --border-width: 1px;
+  --border-style: solid;
+  --padding-start: 16px;
+  --inner-padding-end: 16px;
+  --min-height: var(--input-height);
   
+  border-radius: 12px;
+  border: 1px solid var(--secondary-color);
+  background: rgba(247, 218, 239, 0.1);
+  transition: all 0.3s ease;
+}
+
+@mixin text-title {
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+@mixin text-body {
+  color: var(--ion-color-medium);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+// Header
+.gradient-header {
+  @include gradient-header;
+
   .header-title {
     color: white;
     font-weight: 600;
@@ -17,33 +77,32 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    
+
     .title-icon {
       font-size: 1.4rem;
     }
   }
-  
+
   .back-button {
     --color: white;
   }
 }
 
+// Background
 .gradient-background {
-  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+  @include gradient-background;
 }
 
+// Layout container
 .profile-container {
   padding: 16px;
   max-width: 600px;
   margin: 0 auto;
 }
 
+// Card do usuário
 .user-card {
-  background: var(--card-background);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--secondary-color);
+  @include card-base;
   margin-bottom: 24px;
   
   .user-header {
@@ -56,18 +115,17 @@
     }
     
     .user-avatar {
-      width: 60px;
-      height: 60px;
+      width: var(--avatar-size);
+      height: var(--avatar-size);
       display: flex;
       justify-content: center;
-      align-items:center;
+      align-items: center;
       background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
       box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
       
       .avatar-icon {
         font-size: 1.8rem;
         color: white;
-        text-align: center;
       }
     }
     
@@ -75,34 +133,29 @@
       flex: 1;
       
       .user-name {
+        @include text-title;
         font-size: 1.3rem;
-        font-weight: 700;
-        color: var(--primary-dark);
         margin-bottom: 4px;
       }
       
       .user-email {
+        @include text-body;
         font-size: 0.9rem;
-        color: var(--ion-color-medium);
       }
     }
   }
 }
 
+// Card do formulário
 .form-card {
-  background: var(--card-background);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--secondary-color);
+  @include card-base;
   
   ion-card-header {
     padding: 24px 20px 16px;
     
     .form-title {
+      @include text-title;
       font-size: 1.3rem;
-      font-weight: 700;
-      color: var(--primary-dark);
       display: flex;
       align-items: center;
       gap: 10px;
@@ -115,7 +168,7 @@
     }
     
     ion-card-subtitle {
-      color: var(--ion-color-medium);
+      @include text-body;
       font-size: 0.95rem;
     }
   }
@@ -125,6 +178,7 @@
   }
 }
 
+// Formulário
 .profile-form {
   display: flex;
   flex-direction: column;
@@ -133,19 +187,7 @@
 
 .form-group {
   .custom-input {
-    --background: transparent;
-    --border-radius: 12px;
-    --border-color: var(--secondary-color);
-    --border-width: 1px;
-    --border-style: solid;
-    --padding-start: 16px;
-    --inner-padding-end: 16px;
-    --min-height: 56px;
-    
-    border-radius: 12px;
-    border: 1px solid var(--secondary-color);
-    background: rgba(247, 218, 239, 0.1);
-    transition: all 0.3s ease;
+    @include input-base;
     
     &:focus-within {
       border-color: var(--primary-base);
@@ -169,8 +211,7 @@
     }
     
     .input-label {
-      color: var(--primary-dark);
-      font-weight: 600;
+      @include text-title;
       font-size: 0.9rem;
       margin-bottom: 8px;
     }
@@ -195,13 +236,10 @@
   }
 }
 
+// Botão de salvar
 .save-button {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
-  --background-activated: var(--primary-dark);
-  --border-radius: 12px;
-  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
-  height: 50px;
+  @include gradient-button;
+  height: var(--button-height);
   font-weight: 600;
   font-size: 1rem;
   margin-top: 10px;
@@ -225,12 +263,13 @@
   }
 }
 
+// Mensagem de sucesso
 .success-message {
   animation: slideInUp 0.5s ease;
   
   .success-card {
-    background: rgba(45, 213, 91, 0.1);
-    border: 1px solid rgba(45, 213, 91, 0.3);
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.3);
     border-radius: 12px;
     
     ion-card-content {
@@ -253,6 +292,7 @@
   }
 }
 
+// Animações
 @keyframes slideInUp {
   from {
     opacity: 0;
@@ -267,7 +307,7 @@
 // Modo escuro
 @media (prefers-color-scheme: dark) {
   :host {
-    --card-background: rgba(47, 47, 47, 0.95);
+    --card-background: var(--card-background-dark);
   }
   
   .gradient-background {
@@ -275,7 +315,7 @@
   }
   
   .user-card, .form-card {
-    background: rgba(47, 47, 47, 0.95);
+    background: var(--card-background-dark);
     border-color: rgba(247, 218, 239, 0.2);
     
     .user-name, .form-title {
@@ -301,14 +341,54 @@
   }
 }
 
+// Breakpoints responsivos
+$breakpoints: (
+  tablet: 768px,
+  mobile: 480px
+);
+
+@mixin respond-to($breakpoint) {
+  @if map-has-key($breakpoints, $breakpoint) {
+    @media (max-width: map-get($breakpoints, $breakpoint)) {
+      @content;
+    }
+  }
+}
+
 // Responsividade
-@media (max-width: 480px) {
+@include respond-to(tablet) {
   .profile-container {
     padding: 12px;
   }
   
   .user-card, .form-card {
     border-radius: 16px;
+  }
+  
+  .user-header {
+    padding: 20px 16px !important;
+  }
+  
+  .form-card {
+    ion-card-header {
+      padding: 20px 16px 12px !important;
+    }
+    
+    ion-card-content {
+      padding: 0 16px 20px !important;
+    }
+  }
+}
+
+@include respond-to(mobile) {
+  .profile-container {
+    padding: 8px;
+  }
+  
+  :host {
+    --avatar-size: 50px;
+    --input-height: 52px;
+    --button-height: 48px;
   }
   
   .avatar-section {
@@ -319,5 +399,42 @@
   
   .user-info {
     text-align: center;
+  }
+  
+  .user-avatar .avatar-icon {
+    font-size: 1.6rem !important;
+  }
+  
+  .profile-form {
+    gap: 16px;
+  }
+}
+
+// Otimizações de performance
+.profile-container {
+  content-visibility: auto;
+  contain-intrinsic-size: 800px;
+}
+
+// Utilitários para animação escalonada
+.form-group {
+  animation: slideInUp 0.6s ease forwards;
+  opacity: 0;
+  
+  @for $i from 1 through 5 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

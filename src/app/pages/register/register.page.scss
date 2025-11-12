@@ -1,15 +1,72 @@
-// Variáveis CSS para cores do gradiente
+// Variáveis globais
 :host {
   --primary-light: #b21ab2;
   --primary-dark: #950095;
   --primary-base: #a900a9;
   --secondary-color: #f7daef;
   --card-background: rgba(255, 255, 255, 0.95);
+  --card-background-dark: rgba(47, 47, 47, 0.95);
+  --shadow-primary: 0 8px 32px rgba(169, 0, 169, 0.15);
+  --shadow-hover: 0 12px 40px rgba(169, 0, 169, 0.2);
+  --border-radius: 20px;
+  --input-height: 56px;
+  --button-height: 50px;
 }
 
-.gradient-header {
+// Mixins reutilizáveis
+@mixin gradient-header {
   --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+}
+
+@mixin gradient-background {
+  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+}
+
+@mixin gradient-button {
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
+  --background-activated: var(--primary-dark);
+  --border-radius: 12px;
+  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
+}
+
+@mixin card-base {
+  background: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-primary);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--secondary-color);
+}
+
+@mixin input-base {
+  --background: transparent;
+  --border-radius: 12px;
+  --border-color: var(--secondary-color);
+  --border-width: 1px;
+  --border-style: solid;
+  --padding-start: 16px;
+  --inner-padding-end: 16px;
+  --min-height: var(--input-height);
   
+  border-radius: 12px;
+  border: 1px solid var(--secondary-color);
+  background: rgba(247, 218, 239, 0.1);
+  transition: all 0.3s ease;
+}
+
+@mixin validation-state($color, $opacity: 0.1) {
+  border-color: var($color) !important;
+  background: rgba(var(#{$color}-rgb), $opacity) !important;
+  
+  .input-icon {
+    color: var($color) !important;
+  }
+}
+
+// Header
+.gradient-header {
+  @include gradient-header;
+
   .header-title {
     color: white;
     font-weight: 600;
@@ -17,17 +74,19 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    
+
     .title-icon {
       font-size: 1.4rem;
     }
   }
 }
 
+// Background
 .gradient-background {
-  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+  @include gradient-background;
 }
 
+// Layout container
 .register-container {
   padding: 20px;
   max-width: 400px;
@@ -38,18 +97,15 @@
   justify-content: center;
 }
 
+// Seção de boas-vindas
 .welcome-section {
   margin-bottom: 30px;
   
   .welcome-card {
-    background: var(--card-background);
-    border-radius: 20px;
-    box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--secondary-color);
+    @include card-base;
+    text-align: center;
     
     ion-card-header {
-      text-align: center;
       padding: 24px 16px;
     }
     
@@ -76,68 +132,72 @@
   }
 }
 
+// Card do formulário
 .register-card {
-  background: var(--card-background);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--secondary-color);
+  @include card-base;
   
   ion-card-content {
     padding: 30px 20px;
   }
 }
 
+// Container do formulário
 .form-container {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
+// Grupos de input
 .input-group {
-  .custom-input {
-    --background: transparent;
-    --border-radius: 12px;
-    --border-color: var(--secondary-color);
-    --border-width: 1px;
-    --border-style: solid;
-    --padding-start: 16px;
-    --inner-padding-end: 16px;
-    --min-height: 56px;
-    
-    border-radius: 12px;
-    border: 1px solid var(--secondary-color);
-    background: rgba(247, 218, 239, 0.1);
-    transition: all 0.3s ease;
-    
-    &:focus-within {
-      border-color: var(--primary-base);
-      box-shadow: 0 0 0 2px rgba(169, 0, 169, 0.1);
-      background: rgba(247, 218, 239, 0.2);
-    }
-    
-    .input-icon {
-      color: var(--primary-base);
-      font-size: 1.2rem;
-      margin-right: 12px;
-    }
-    
-    .input-field {
-      --placeholder-color: var(--ion-color-medium);
-      --placeholder-opacity: 0.8;
-      color: var(--primary-dark);
-      font-size: 1rem;
+  animation: slideUp 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  
+  @for $i from 1 through 3 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
     }
   }
 }
 
+// Inputs customizados
+.custom-input {
+  @include input-base;
+  
+  &:focus-within {
+    border-color: var(--primary-base);
+    box-shadow: 0 0 0 2px rgba(169, 0, 169, 0.1);
+    background: rgba(247, 218, 239, 0.2);
+  }
+  
+  .input-icon {
+    color: var(--primary-base);
+    font-size: 1.2rem;
+    margin-right: 12px;
+  }
+  
+  .input-field {
+    --placeholder-color: var(--ion-color-medium);
+    --placeholder-opacity: 0.8;
+    color: var(--primary-dark);
+    font-size: 1rem;
+  }
+  
+  // Estados de validação
+  &.valid {
+    @include validation-state(--ion-color-success, 0.05);
+  }
+  
+  &.invalid {
+    @include validation-state(--ion-color-danger, 0.05);
+  }
+}
+
+// Botão de registro
 .register-button {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
-  --background-activated: var(--primary-dark);
-  --border-radius: 12px;
-  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
-  height: 50px;
+  @include gradient-button;
+  height: var(--button-height);
   font-weight: 600;
   font-size: 1.1rem;
   margin-top: 10px;
@@ -157,11 +217,12 @@
   }
 }
 
+// Botão de login
 .login-button {
   --color: var(--primary-base);
   --background-hover: rgba(169, 0, 169, 0.1);
   --border-radius: 12px;
-  height: 50px;
+  height: var(--button-height);
   font-weight: 500;
   margin-top: 5px;
   
@@ -174,15 +235,16 @@
   }
 }
 
+// Mensagem de erro
 .error-message {
   color: var(--ion-color-danger);
   text-align: center;
   font-size: 0.9rem;
   margin: 10px 0 0 0;
   padding: 12px;
-  background: rgba(197, 0, 15, 0.1);
+  background: rgba(var(--ion-color-danger-rgb), 0.1);
   border-radius: 8px;
-  border: 1px solid rgba(197, 0, 15, 0.2);
+  border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,20 +252,65 @@
   animation: fadeIn 0.3s ease;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+// Indicadores de validação
+.password-strength,
+.password-match {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-// Animações para os inputs
-.input-group {
-  animation: slideUp 0.6s ease forwards;
-  opacity: 0;
-  transform: translateY(20px);
+.password-strength {
+  &.weak {
+    color: var(--ion-color-danger);
+    background: rgba(var(--ion-color-danger-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
+  }
   
-  &:nth-child(1) { animation-delay: 0.1s; }
-  &:nth-child(2) { animation-delay: 0.2s; }
-  &:nth-child(3) { animation-delay: 0.3s; }
+  &.medium {
+    color: var(--ion-color-warning);
+    background: rgba(var(--ion-color-warning-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.2);
+  }
+  
+  &.strong {
+    color: var(--ion-color-success);
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+  }
+}
+
+.password-match {
+  &.valid {
+    color: var(--ion-color-success);
+    background: rgba(var(--ion-color-success-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+  }
+  
+  &.invalid {
+    color: var(--ion-color-danger);
+    background: rgba(var(--ion-color-danger-rgb), 0.1);
+    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
+  }
+}
+
+// Animações
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
 }
 
 @keyframes slideUp {
@@ -216,7 +323,7 @@
 // Modo escuro
 @media (prefers-color-scheme: dark) {
   :host {
-    --card-background: rgba(47, 47, 47, 0.95);
+    --card-background: var(--card-background-dark);
   }
   
   .gradient-background {
@@ -224,7 +331,7 @@
   }
   
   .welcome-card, .register-card {
-    background: rgba(47, 47, 47, 0.95);
+    background: var(--card-background-dark);
     border-color: rgba(247, 218, 239, 0.2);
     
     ion-card-title {
@@ -256,11 +363,31 @@
       --color: var(--primary-light);
     }
   }
+  
+  .password-strength,
+  .password-match {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
+}
+
+// Breakpoints responsivos
+$breakpoints: (
+  tablet: 768px,
+  mobile: 480px
+);
+
+@mixin respond-to($breakpoint) {
+  @if map-has-key($breakpoints, $breakpoint) {
+    @media (max-width: map-get($breakpoints, $breakpoint)) {
+      @content;
+    }
+  }
 }
 
 // Responsividade
-@media (max-height: 700px) {
+@include respond-to(tablet) {
   .register-container {
+    padding: 16px;
     justify-content: flex-start;
     padding-top: 40px;
   }
@@ -268,94 +395,59 @@
   .welcome-section {
     margin-bottom: 20px;
   }
-}
-
-@media (max-width: 480px) {
-  .register-container {
-    padding: 15px;
-  }
   
   .welcome-card, .register-card {
     border-radius: 16px;
   }
-}
-
-.password-strength {
-  margin-top: 8px;
-  font-size: 0.8rem;
-  padding: 8px;
-  border-radius: 6px;
-  text-align: center;
-  transition: all 0.3s ease;
   
-  &.weak {
-    color: var(--ion-color-danger);
-    background: rgba(197, 0, 15, 0.1);
-    border: 1px solid rgba(197, 0, 15, 0.2);
-  }
-  
-  &.medium {
-    color: var(--ion-color-warning);
-    background: rgba(255, 196, 9, 0.1);
-    border: 1px solid rgba(255, 196, 9, 0.2);
-  }
-  
-  &.strong {
-    color: var(--ion-color-success);
-    background: rgba(45, 213, 91, 0.1);
-    border: 1px solid rgba(45, 213, 91, 0.2);
+  .register-card ion-card-content {
+    padding: 24px 16px;
   }
 }
 
-.password-match {
-  margin-top: 8px;
-  font-size: 0.8rem;
-  padding: 8px;
-  border-radius: 6px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.3s ease;
-  
-  &.valid {
-    color: var(--ion-color-success);
-    background: rgba(45, 213, 91, 0.1);
-    border: 1px solid rgba(45, 213, 91, 0.2);
+@include respond-to(mobile) {
+  .register-container {
+    padding: 12px;
   }
   
-  &.invalid {
-    color: var(--ion-color-danger);
-    background: rgba(197, 0, 15, 0.1);
-    border: 1px solid rgba(197, 0, 15, 0.2);
+  :host {
+    --input-height: 52px;
+    --button-height: 48px;
   }
-}
-
-// Estilos para inputs com validação
-.custom-input {
-  &.valid {
-    border-color: var(--ion-color-success) !important;
-    background: rgba(45, 213, 91, 0.05) !important;
+  
+  .welcome-card {
+    ion-card-header {
+      padding: 20px 12px;
+    }
     
-    .input-icon.valid {
-      color: var(--ion-color-success) !important;
+    ion-card-title {
+      font-size: 1.3rem;
+      
+      .welcome-icon {
+        font-size: 1.8rem;
+      }
     }
   }
   
-  &.invalid {
-    border-color: var(--ion-color-danger) !important;
-    background: rgba(197, 0, 15, 0.05) !important;
-    
-    .input-icon.invalid {
-      color: var(--ion-color-danger) !important;
-    }
+  .form-container {
+    gap: 16px;
   }
 }
 
-// Modo escuro para validações
-@media (prefers-color-scheme: dark) {
-  .password-strength, .password-match {
-    background: rgba(255, 255, 255, 0.05) !important;
+// Utilitários para altura da tela
+@media (max-height: 700px) {
+  .register-container {
+    justify-content: flex-start;
+    padding-top: 20px;
   }
+}
+
+// Otimizações de performance
+.register-container {
+  content-visibility: auto;
+  contain-intrinsic-size: 600px;
+}
+
+.input-group {
+  will-change: transform, opacity;
 }
