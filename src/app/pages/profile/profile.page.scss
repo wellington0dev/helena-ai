@@ -1,108 +1,18 @@
-// Variáveis globais
-:host {
-  --primary-light: #b21ab2;
-  --primary-dark: #950095;
-  --primary-base: #a900a9;
-  --secondary-color: #f7daef;
-  --card-background: rgba(255, 255, 255, 0.95);
-  --card-background-dark: rgba(47, 47, 47, 0.95);
-  --shadow-primary: 0 8px 32px rgba(169, 0, 169, 0.15);
-  --shadow-hover: 0 12px 40px rgba(169, 0, 169, 0.2);
-  --border-radius: 20px;
-  --input-height: 56px;
-  --button-height: 50px;
-  --avatar-size: 60px;
-}
-
-// Mixins reutilizáveis
-@mixin gradient-header {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-}
-
-@mixin gradient-background {
-  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
-}
-
-@mixin gradient-button {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
-  --background-activated: var(--primary-dark);
-  --border-radius: 12px;
-  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
-}
-
-@mixin card-base {
-  background: var(--card-background);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-primary);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--secondary-color);
-}
-
-@mixin input-base {
-  --background: transparent;
-  --border-radius: 12px;
-  --border-color: var(--secondary-color);
-  --border-width: 1px;
-  --border-style: solid;
-  --padding-start: 16px;
-  --inner-padding-end: 16px;
-  --min-height: var(--input-height);
-  
-  border-radius: 12px;
-  border: 1px solid var(--secondary-color);
-  background: rgba(247, 218, 239, 0.1);
-  transition: all 0.3s ease;
-}
-
-@mixin text-title {
-  font-weight: 700;
-  color: var(--primary-dark);
-}
-
-@mixin text-body {
-  color: var(--ion-color-medium);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-// Header
-.gradient-header {
-  @include gradient-header;
-
-  .header-title {
-    color: white;
-    font-weight: 600;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .title-icon {
-      font-size: 1.4rem;
-    }
-  }
-
-  .back-button {
-    --color: white;
-  }
-}
-
-// Background
-.gradient-background {
-  @include gradient-background;
-}
-
-// Layout container
 .profile-container {
   padding: 16px;
   max-width: 600px;
   margin: 0 auto;
 }
 
-// Card do usuário
+.user-card, .form-card {
+  background: var(--card-background);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--secondary-color);
+}
+
 .user-card {
-  @include card-base;
   margin-bottom: 24px;
   
   .user-header {
@@ -115,8 +25,8 @@
     }
     
     .user-avatar {
-      width: var(--avatar-size);
-      height: var(--avatar-size);
+      width: 60px;
+      height: 60px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -133,29 +43,28 @@
       flex: 1;
       
       .user-name {
-        @include text-title;
         font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--primary-dark);
         margin-bottom: 4px;
       }
       
       .user-email {
-        @include text-body;
         font-size: 0.9rem;
+        color: var(--ion-color-medium);
       }
     }
   }
 }
 
-// Card do formulário
 .form-card {
-  @include card-base;
-  
   ion-card-header {
     padding: 24px 20px 16px;
     
     .form-title {
-      @include text-title;
       font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary-dark);
       display: flex;
       align-items: center;
       gap: 10px;
@@ -168,7 +77,7 @@
     }
     
     ion-card-subtitle {
-      @include text-body;
+      color: var(--ion-color-medium);
       font-size: 0.95rem;
     }
   }
@@ -178,7 +87,6 @@
   }
 }
 
-// Formulário
 .profile-form {
   display: flex;
   flex-direction: column;
@@ -187,7 +95,18 @@
 
 .form-group {
   .custom-input {
-    @include input-base;
+    --background: transparent;
+    --border-radius: 12px;
+    --border-color: var(--secondary-color);
+    --border-width: 1px;
+    --border-style: solid;
+    --padding-start: 16px;
+    --inner-padding-end: 16px;
+    --min-height: 56px;
+    border-radius: 12px;
+    border: 1px solid var(--secondary-color);
+    background: rgba(247, 218, 239, 0.1);
+    transition: all 0.3s ease;
     
     &:focus-within {
       border-color: var(--primary-base);
@@ -199,9 +118,7 @@
       --min-height: 120px;
       align-items: flex-start;
       
-      .input-icon {
-        margin-top: 16px;
-      }
+      .input-icon { margin-top: 16px; }
     }
     
     .input-icon {
@@ -211,35 +128,31 @@
     }
     
     .input-label {
-      @include text-title;
+      color: var(--primary-dark);
+      font-weight: 600;
       font-size: 0.9rem;
       margin-bottom: 8px;
     }
     
-    .input-field {
+    .input-field, .custom-select {
       --placeholder-color: var(--ion-color-medium);
       --placeholder-opacity: 0.8;
       color: var(--primary-dark);
       font-size: 1rem;
-    }
-    
-    .custom-select {
-      --placeholder-color: var(--ion-color-medium);
-      --placeholder-opacity: 0.8;
-      color: var(--primary-dark);
       width: 100%;
     }
     
-    .custom-textarea {
-      min-height: 100px;
-    }
+    .custom-textarea { min-height: 100px; }
   }
 }
 
-// Botão de salvar
 .save-button {
-  @include gradient-button;
-  height: var(--button-height);
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
+  --background-activated: var(--primary-dark);
+  --border-radius: 12px;
+  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
+  height: 50px;
   font-weight: 600;
   font-size: 1rem;
   margin-top: 10px;
@@ -250,26 +163,18 @@
     transform: translateY(-2px);
   }
   
-  &:active {
-    transform: translateY(0);
-  }
+  &:active { transform: translateY(0); }
   
-  .button-spinner {
-    color: white;
-  }
-  
-  ion-icon {
-    font-size: 1.1rem;
-  }
+  .button-spinner { color: white; }
+  ion-icon { font-size: 1.1rem; }
 }
 
-// Mensagem de sucesso
 .success-message {
   animation: slideInUp 0.5s ease;
   
   .success-card {
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.3);
+    background: rgba(45, 213, 91, 0.1);
+    border: 1px solid rgba(45, 213, 91, 0.3);
     border-radius: 12px;
     
     ion-card-content {
@@ -279,9 +184,7 @@
       gap: 12px;
       color: var(--ion-color-success);
       
-      .success-icon {
-        font-size: 1.5rem;
-      }
+      .success-icon { font-size: 1.5rem; }
       
       p {
         margin: 0;
@@ -292,149 +195,44 @@
   }
 }
 
-// Animações
 @keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 // Modo escuro
 @media (prefers-color-scheme: dark) {
-  :host {
-    --card-background: var(--card-background-dark);
-  }
+  :host { --card-background: rgba(47, 47, 47, 0.95); }
   
   .gradient-background {
     --background: linear-gradient(135deg, var(--ion-color-dark) 0%, #3a1a3a 50%, #2d1b2d 100%);
   }
   
   .user-card, .form-card {
-    background: var(--card-background-dark);
+    background: rgba(47, 47, 47, 0.95);
     border-color: rgba(247, 218, 239, 0.2);
     
-    .user-name, .form-title {
-      color: var(--secondary-color);
-    }
-    
-    .user-email, ion-card-subtitle {
-      color: #a0a0a0;
-    }
+    .user-name, .form-title { color: var(--secondary-color); }
+    .user-email, ion-card-subtitle { color: #a0a0a0; }
   }
   
   .custom-input {
     background: rgba(247, 218, 239, 0.05) !important;
     border-color: rgba(247, 218, 239, 0.3) !important;
     
-    .input-label {
-      color: var(--secondary-color) !important;
-    }
-    
-    .input-field, .custom-select {
-      color: var(--secondary-color) !important;
-    }
-  }
-}
-
-// Breakpoints responsivos
-$breakpoints: (
-  tablet: 768px,
-  mobile: 480px
-);
-
-@mixin respond-to($breakpoint) {
-  @if map-has-key($breakpoints, $breakpoint) {
-    @media (max-width: map-get($breakpoints, $breakpoint)) {
-      @content;
-    }
+    .input-label { color: var(--secondary-color) !important; }
+    .input-field, .custom-select { color: var(--secondary-color) !important; }
   }
 }
 
 // Responsividade
-@include respond-to(tablet) {
-  .profile-container {
-    padding: 12px;
-  }
-  
-  .user-card, .form-card {
-    border-radius: 16px;
-  }
-  
-  .user-header {
-    padding: 20px 16px !important;
-  }
-  
-  .form-card {
-    ion-card-header {
-      padding: 20px 16px 12px !important;
-    }
-    
-    ion-card-content {
-      padding: 0 16px 20px !important;
-    }
-  }
-}
-
-@include respond-to(mobile) {
-  .profile-container {
-    padding: 8px;
-  }
-  
-  :host {
-    --avatar-size: 50px;
-    --input-height: 52px;
-    --button-height: 48px;
-  }
-  
+@media (max-width: 480px) {
+  .profile-container { padding: 12px; }
+  .user-card, .form-card { border-radius: 16px; }
   .avatar-section {
     flex-direction: column;
     text-align: center;
     gap: 12px !important;
   }
-  
-  .user-info {
-    text-align: center;
-  }
-  
-  .user-avatar .avatar-icon {
-    font-size: 1.6rem !important;
-  }
-  
-  .profile-form {
-    gap: 16px;
-  }
-}
-
-// Otimizações de performance
-.profile-container {
-  content-visibility: auto;
-  contain-intrinsic-size: 800px;
-}
-
-// Utilitários para animação escalonada
-.form-group {
-  animation: slideInUp 0.6s ease forwards;
-  opacity: 0;
-  
-  @for $i from 1 through 5 {
-    &:nth-child(#{$i}) {
-      animation-delay: #{$i * 0.1}s;
-    }
-  }
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  .user-info { text-align: center; }
 }

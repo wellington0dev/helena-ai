@@ -17,6 +17,19 @@
       <ion-card-content>
         <div class="form-container">
           
+          <!-- Novo campo: Nome -->
+          <div class="input-group">
+            <ion-item class="custom-input">
+              <ion-icon name="person" slot="start" class="input-icon"></ion-icon>
+              <ion-input 
+                [(ngModel)]="name" 
+                placeholder="Seu nome completo" 
+                type="text"
+                class="input-field">
+              </ion-input>
+            </ion-item>
+          </div>
+
           <div class="input-group">
             <ion-item class="custom-input">
               <ion-icon name="mail" slot="start" class="input-icon"></ion-icon>

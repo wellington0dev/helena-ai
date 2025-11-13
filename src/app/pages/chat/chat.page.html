@@ -40,8 +40,8 @@
   @if (messages.length > 0) {
   <div class="message-container">
     @for (msg of messages; track msg.datetime || $index; let i = $index) {
-    <div class="message-wrapper" [class.user-message]="msg.role !== 'Helena'"
-      [class.assistant-message]="msg.role === 'Helena'">
+    <div class="message-wrapper" [class.user-message]="msg.sender !== 'Helena'"
+      [class.assistant-message]="msg.sender === 'Helena'">
 
       @if (isNewDay(i)) {
       <div class="date-separator">
@@ -49,14 +49,14 @@
       </div>
       }
 
-      @if (msg.role === 'Helena') {
+      @if (msg.sender === 'Helena') {
       <div class="message-bubble assistant-bubble">
         <div class="message-header">
           <ion-avatar class="avatar">
             <ion-icon name="sparkles" class="avatar-icon"></ion-icon>
           </ion-avatar>
           <span class="sender-name">Helena</span>
-          <span class="message-time">{{ getMessageTime(i) }}</span>
+          <span class="message-time">{{ msg.datetime | date:'dd/MM/yyyy HH:mm' }}</span>
         </div>
         <div class="message-text">
           {{ msg.text }}
@@ -64,10 +64,10 @@
       </div>
       }
 
-      @if (msg.role !== 'Helena') {
+      @if (msg.sender !== 'Helena') {
       <div class="message-bubble user-bubble">
         <div class="message-header user-header">
-          <span class="message-time">{{ getMessageTime(i) }}</span>
+          <span class="message-time">{{ msg.datetime | date:'dd/MM/yyyy HH:mm' }}</span>
           <span class="sender-name">Você</span>
           <ion-avatar class="avatar user-avatar">
             <ion-icon name="person" class="avatar-icon"></ion-icon>

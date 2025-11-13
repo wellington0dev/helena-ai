@@ -1,111 +1,31 @@
-// Variáveis globais
-:host {
-  --primary-light: #b21ab2;
-  --primary-dark: #950095;
-  --primary-base: #a900a9;
-  --secondary-color: #f7daef;
-  --card-background: rgba(255, 255, 255, 0.95);
-  --card-background-dark: rgba(47, 47, 47, 0.95);
-  --shadow-primary: 0 8px 32px rgba(169, 0, 169, 0.15);
-  --shadow-hover: 0 12px 40px rgba(169, 0, 169, 0.2);
-  --border-radius: 20px;
-  --input-height: 56px;
-  --button-height: 50px;
-}
-
-// Mixins reutilizáveis
-@mixin gradient-header {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-}
-
-@mixin gradient-background {
-  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
-}
-
-@mixin gradient-button {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
-  --background-activated: var(--primary-dark);
-  --border-radius: 12px;
-  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
-}
-
-@mixin card-base {
-  background: var(--card-background);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-primary);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--secondary-color);
-}
-
-@mixin input-base {
-  --background: transparent;
-  --border-radius: 12px;
-  --border-color: var(--secondary-color);
-  --border-width: 1px;
-  --border-style: solid;
-  --padding-start: 16px;
-  --inner-padding-end: 16px;
-  --min-height: var(--input-height);
-  
-  border-radius: 12px;
-  border: 1px solid var(--secondary-color);
-  background: rgba(247, 218, 239, 0.1);
-  transition: all 0.3s ease;
-}
-
-@mixin validation-state($color, $opacity: 0.1) {
-  border-color: var($color) !important;
-  background: rgba(var(#{$color}-rgb), $opacity) !important;
-  
-  .input-icon {
-    color: var($color) !important;
-  }
-}
-
-// Header
-.gradient-header {
-  @include gradient-header;
-
-  .header-title {
-    color: white;
-    font-weight: 600;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .title-icon {
-      font-size: 1.4rem;
-    }
-  }
-}
-
-// Background
-.gradient-background {
-  @include gradient-background;
-}
-
-// Layout container
 .register-container {
   padding: 20px;
   max-width: 400px;
   margin: 0 auto;
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  scroll-behavior: smooth;
+  
+  * {
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
-// Seção de boas-vindas
 .welcome-section {
   margin-bottom: 30px;
-  
+  flex-shrink: 0;
+
   .welcome-card {
-    @include card-base;
-    text-align: center;
+    background: var(--card-background);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--secondary-color);
     
     ion-card-header {
+      text-align: center;
       padding: 24px 16px;
     }
     
@@ -132,322 +52,293 @@
   }
 }
 
-// Card do formulário
 .register-card {
-  @include card-base;
+  background: var(--card-background);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--secondary-color);
+  flex-shrink: 0;
   
   ion-card-content {
     padding: 30px 20px;
   }
 }
 
-// Container do formulário
 .form-container {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-// Grupos de input
 .input-group {
   animation: slideUp 0.6s ease forwards;
   opacity: 0;
   transform: translateY(20px);
   
-  @for $i from 1 through 3 {
-    &:nth-child(#{$i}) {
-      animation-delay: #{$i * 0.1}s;
+  &:nth-child(1) { animation-delay: 0.1s; }
+  &:nth-child(2) { animation-delay: 0.2s; }
+  &:nth-child(3) { animation-delay: 0.3s; }
+  &:nth-child(4) { animation-delay: 0.4s; }
+
+  .custom-input {
+    --background: transparent;
+    --border-radius: 12px;
+    --border-color: var(--secondary-color);
+    --border-width: 1px;
+    --border-style: solid;
+    --padding-start: 16px;
+    --inner-padding-end: 16px;
+    --min-height: 56px;
+    border-radius: 12px;
+    border: 1px solid var(--secondary-color);
+    background: rgba(247, 218, 239, 0.1);
+    transition: all 0.3s ease;
+    
+    &:focus-within {
+      border-color: var(--primary-base);
+      box-shadow: 0 0 0 2px rgba(169, 0, 169, 0.1);
+      background: rgba(247, 218, 239, 0.2);
+    }
+    
+    &.valid {
+      border-color: var(--ion-color-success) !important;
+      background: rgba(45, 213, 91, 0.05) !important;
+      .input-icon.valid { color: var(--ion-color-success) !important; }
+    }
+    
+    &.invalid {
+      border-color: var(--ion-color-danger) !important;
+      background: rgba(197, 0, 15, 0.05) !important;
+      .input-icon.invalid { color: var(--ion-color-danger) !important; }
+    }
+    
+    .input-icon {
+      color: var(--primary-base);
+      font-size: 1.2rem;
+      margin-right: 12px;
+    }
+    
+    .input-field {
+      --placeholder-color: var(--ion-color-medium);
+      --placeholder-opacity: 0.8;
+      color: var(--primary-dark);
+      font-size: 1rem;
     }
   }
 }
 
-// Inputs customizados
-.custom-input {
-  @include input-base;
-  
-  &:focus-within {
-    border-color: var(--primary-base);
-    box-shadow: 0 0 0 2px rgba(169, 0, 169, 0.1);
-    background: rgba(247, 218, 239, 0.2);
-  }
-  
-  .input-icon {
-    color: var(--primary-base);
-    font-size: 1.2rem;
-    margin-right: 12px;
-  }
-  
-  .input-field {
-    --placeholder-color: var(--ion-color-medium);
-    --placeholder-opacity: 0.8;
-    color: var(--primary-dark);
-    font-size: 1rem;
-  }
-  
-  // Estados de validação
-  &.valid {
-    @include validation-state(--ion-color-success, 0.05);
-  }
-  
-  &.invalid {
-    @include validation-state(--ion-color-danger, 0.05);
-  }
-}
-
-// Botão de registro
 .register-button {
-  @include gradient-button;
-  height: var(--button-height);
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+  --background-hover: linear-gradient(135deg, var(--primary-dark) 0%, #7a007a 100%);
+  --background-activated: var(--primary-dark);
+  --border-radius: 12px;
+  --box-shadow: 0 4px 16px rgba(169, 0, 169, 0.3);
+  height: 50px;
   font-weight: 600;
   font-size: 1.1rem;
   margin-top: 10px;
   transition: all 0.3s ease;
+  flex-shrink: 0;
   
   &:hover {
     --box-shadow: 0 6px 20px rgba(169, 0, 169, 0.4);
     transform: translateY(-2px);
   }
   
-  &:active {
-    transform: translateY(0);
-  }
+  &:active { transform: translateY(0); }
   
-  .button-spinner {
-    color: white;
-  }
+  .button-spinner { color: white; }
 }
 
-// Botão de login
 .login-button {
   --color: var(--primary-base);
   --background-hover: rgba(169, 0, 169, 0.1);
   --border-radius: 12px;
-  height: var(--button-height);
+  height: 50px;
   font-weight: 500;
   margin-top: 5px;
+  flex-shrink: 0;
   
-  ion-icon {
-    font-size: 1.1rem;
-  }
-  
-  &:hover {
-    --color: var(--primary-dark);
-  }
+  ion-icon { font-size: 1.1rem; }
+  &:hover { --color: var(--primary-dark); }
 }
 
-// Mensagem de erro
 .error-message {
   color: var(--ion-color-danger);
   text-align: center;
   font-size: 0.9rem;
   margin: 10px 0 0 0;
   padding: 12px;
-  background: rgba(var(--ion-color-danger-rgb), 0.1);
+  background: rgba(197, 0, 15, 0.1);
   border-radius: 8px;
-  border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
+  border: 1px solid rgba(197, 0, 15, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   animation: fadeIn 0.3s ease;
+  flex-shrink: 0;
 }
 
-// Indicadores de validação
-.password-strength,
-.password-match {
+.password-strength, .password-match {
   margin-top: 8px;
   font-size: 0.8rem;
   padding: 8px;
   border-radius: 6px;
   text-align: center;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  flex-shrink: 0;
 }
 
 .password-strength {
   &.weak {
     color: var(--ion-color-danger);
-    background: rgba(var(--ion-color-danger-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
+    background: rgba(197, 0, 15, 0.1);
+    border: 1px solid rgba(197, 0, 15, 0.2);
   }
   
   &.medium {
     color: var(--ion-color-warning);
-    background: rgba(var(--ion-color-warning-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-warning-rgb), 0.2);
+    background: rgba(255, 196, 9, 0.1);
+    border: 1px solid rgba(255, 196, 9, 0.2);
   }
   
   &.strong {
     color: var(--ion-color-success);
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+    background: rgba(45, 213, 91, 0.1);
+    border: 1px solid rgba(45, 213, 91, 0.2);
   }
 }
 
 .password-match {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  
   &.valid {
     color: var(--ion-color-success);
-    background: rgba(var(--ion-color-success-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-success-rgb), 0.2);
+    background: rgba(45, 213, 91, 0.1);
+    border: 1px solid rgba(45, 213, 91, 0.2);
   }
   
   &.invalid {
     color: var(--ion-color-danger);
-    background: rgba(var(--ion-color-danger-rgb), 0.1);
-    border: 1px solid rgba(var(--ion-color-danger-rgb), 0.2);
+    background: rgba(197, 0, 15, 0.1);
+    border: 1px solid rgba(197, 0, 15, 0.2);
   }
 }
 
-// Animações
 @keyframes fadeIn {
-  from { 
-    opacity: 0; 
-    transform: translateY(-10px); 
-  }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
-  }
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 // Modo escuro
 @media (prefers-color-scheme: dark) {
-  :host {
-    --card-background: var(--card-background-dark);
-  }
+  :host { --card-background: rgba(47, 47, 47, 0.95); }
   
   .gradient-background {
     --background: linear-gradient(135deg, var(--ion-color-dark) 0%, #3a1a3a 50%, #2d1b2d 100%);
   }
   
   .welcome-card, .register-card {
-    background: var(--card-background-dark);
+    background: rgba(47, 47, 47, 0.95);
     border-color: rgba(247, 218, 239, 0.2);
     
     ion-card-title {
       color: var(--secondary-color);
-      
-      .welcome-icon {
-        color: var(--primary-light);
-      }
+      .welcome-icon { color: var(--primary-light); }
     }
     
-    ion-card-subtitle {
-      color: #a0a0a0;
-    }
+    ion-card-subtitle { color: #a0a0a0; }
   }
   
   .custom-input {
     background: rgba(247, 218, 239, 0.05) !important;
     border-color: rgba(247, 218, 239, 0.3) !important;
     
-    .input-field {
-      color: var(--secondary-color) !important;
-    }
+    .input-field { color: var(--secondary-color) !important; }
   }
   
   .login-button {
     --color: var(--secondary-color);
-    
-    &:hover {
-      --color: var(--primary-light);
-    }
+    &:hover { --color: var(--primary-light); }
   }
   
-  .password-strength,
-  .password-match {
+  .password-strength, .password-match {
     background: rgba(255, 255, 255, 0.05) !important;
   }
 }
 
-// Breakpoints responsivos
-$breakpoints: (
-  tablet: 768px,
-  mobile: 480px
-);
-
-@mixin respond-to($breakpoint) {
-  @if map-has-key($breakpoints, $breakpoint) {
-    @media (max-width: map-get($breakpoints, $breakpoint)) {
-      @content;
-    }
-  }
-}
-
 // Responsividade
-@include respond-to(tablet) {
+@media (max-height: 800px) {
   .register-container {
-    padding: 16px;
+    padding: 15px 20px;
     justify-content: flex-start;
-    padding-top: 40px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
-  .welcome-section {
-    margin-bottom: 20px;
-  }
-  
-  .welcome-card, .register-card {
-    border-radius: 16px;
-  }
-  
-  .register-card ion-card-content {
-    padding: 24px 16px;
-  }
+  .welcome-section { margin-bottom: 20px; }
+  .welcome-card, .register-card { border-radius: 16px; }
+  .register-card ion-card-content { padding: 25px 20px; }
 }
 
-@include respond-to(mobile) {
-  .register-container {
-    padding: 12px;
-  }
-  
-  :host {
-    --input-height: 52px;
-    --button-height: 48px;
-  }
+@media (max-height: 600px) {
+  .register-container { padding: 10px 15px; }
+  .welcome-section { margin-bottom: 15px; }
   
   .welcome-card {
-    ion-card-header {
-      padding: 20px 12px;
-    }
-    
+    ion-card-header { padding: 20px 16px; }
     ion-card-title {
       font-size: 1.3rem;
-      
-      .welcome-icon {
-        font-size: 1.8rem;
-      }
+      .welcome-icon { font-size: 1.8rem; }
     }
   }
   
-  .form-container {
-    gap: 16px;
+  .register-card ion-card-content { padding: 20px 16px; }
+  .form-container { gap: 16px; }
+  
+  .custom-input {
+    --min-height: 52px;
+    .input-icon { font-size: 1.1rem; }
+  }
+  
+  .register-button, .login-button {
+    height: 48px;
+    font-size: 1rem;
   }
 }
 
-// Utilitários para altura da tela
-@media (max-height: 700px) {
+@media (max-width: 480px) {
   .register-container {
-    justify-content: flex-start;
-    padding-top: 20px;
+    padding: 15px;
+    max-width: 100%;
   }
+  
+  .welcome-card, .register-card { border-radius: 16px; }
+  .register-card ion-card-content { padding: 25px 16px; }
 }
 
-// Otimizações de performance
-.register-container {
-  content-visibility: auto;
-  contain-intrinsic-size: 600px;
+@media (max-width: 360px) {
+  .register-container { padding: 10px; }
+  
+  .welcome-card {
+    ion-card-header { padding: 16px 12px; }
+    ion-card-title {
+      font-size: 1.2rem;
+      .welcome-icon { font-size: 1.6rem; }
+    }
+  }
+  
+  .register-card ion-card-content { padding: 20px 12px; }
+  .form-container { gap: 14px; }
 }
 
-.input-group {
-  will-change: transform, opacity;
-}
+ion-content { --overflow: auto; }

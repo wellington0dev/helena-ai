@@ -1,13 +1,10 @@
-
 @import "@ionic/angular/css/core.css";
 
-/* Basic CSS for apps built with Ionic */
 @import "@ionic/angular/css/normalize.css";
 @import "@ionic/angular/css/structure.css";
 @import "@ionic/angular/css/typography.css";
 @import "@ionic/angular/css/display.css";
 
-/* Optional CSS utils that can be commented out */
 @import "@ionic/angular/css/padding.css";
 @import "@ionic/angular/css/float-elements.css";
 @import "@ionic/angular/css/text-alignment.css";
@@ -16,3 +13,40 @@
 
 @import "@ionic/angular/css/palettes/dark.system.css";
 
+:root {
+  --primary-light: #b21ab2;
+  --primary-dark: #950095;
+  --primary-base: #a900a9;
+  --secondary-color: #f7daef;
+  --card-background: rgba(255, 255, 255, 0.95);
+}
+
+.gradient-header {
+  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
+
+  .header-title {
+    color: white;
+    font-weight: 600;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .title-icon {
+      font-size: 1.4rem;
+    }
+  }
+
+  .logout-btn {
+    --color: white;
+    --background-hover: rgba(255, 255, 255, 0.1);
+  }
+
+  .back-button {
+    --color: white;
+  }
+}
+
+.gradient-background {
+  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
+}

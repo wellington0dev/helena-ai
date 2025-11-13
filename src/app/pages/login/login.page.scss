@@ -1,46 +1,22 @@
-// Variáveis CSS para cores do gradiente
-:host {
-  --primary-light: #b21ab2;
-  --primary-dark: #950095;
-  --primary-base: #a900a9;
-  --secondary-color: #f7daef;
-  --card-background: rgba(255, 255, 255, 0.95);
-}
-
-.gradient-header {
-  --background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%);
-  
-  .header-title {
-    color: white;
-    font-weight: 600;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .title-icon {
-      font-size: 1.4rem;
-    }
-  }
-}
-
-.gradient-background {
-  --background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-secondary) 50%, #f8f0f5 100%);
-}
-
 .login-container {
   padding: 20px;
   max-width: 400px;
   margin: 0 auto;
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  scroll-behavior: smooth;
+  
+  * {
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
 .welcome-section {
   margin-bottom: 30px;
-  
+  flex-shrink: 0;
+
   .welcome-card {
     background: var(--card-background);
     border-radius: 20px;
@@ -82,6 +58,7 @@
   box-shadow: 0 8px 32px rgba(169, 0, 169, 0.15);
   backdrop-filter: blur(10px);
   border: 1px solid var(--secondary-color);
+  flex-shrink: 0;
   
   ion-card-content {
     padding: 30px 20px;
@@ -95,6 +72,13 @@
 }
 
 .input-group {
+  animation: slideUp 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  
+  &:nth-child(1) { animation-delay: 0.1s; }
+  &:nth-child(2) { animation-delay: 0.2s; }
+
   .custom-input {
     --background: transparent;
     --border-radius: 12px;
@@ -104,7 +88,6 @@
     --padding-start: 16px;
     --inner-padding-end: 16px;
     --min-height: 56px;
-    
     border-radius: 12px;
     border: 1px solid var(--secondary-color);
     background: rgba(247, 218, 239, 0.1);
@@ -142,19 +125,16 @@
   font-size: 1.1rem;
   margin-top: 10px;
   transition: all 0.3s ease;
+  flex-shrink: 0;
   
   &:hover {
     --box-shadow: 0 6px 20px rgba(169, 0, 169, 0.4);
     transform: translateY(-2px);
   }
   
-  &:active {
-    transform: translateY(0);
-  }
+  &:active { transform: translateY(0); }
   
-  .button-spinner {
-    color: white;
-  }
+  .button-spinner { color: white; }
 }
 
 .register-button {
@@ -164,10 +144,9 @@
   height: 50px;
   font-weight: 500;
   margin-top: 5px;
+  flex-shrink: 0;
   
-  &:hover {
-    --color: var(--primary-dark);
-  }
+  &:hover { --color: var(--primary-dark); }
 }
 
 .error-message {
@@ -184,6 +163,7 @@
   justify-content: center;
   gap: 8px;
   animation: fadeIn 0.3s ease;
+  flex-shrink: 0;
 }
 
 @keyframes fadeIn {
@@ -191,28 +171,13 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-// Animações para os inputs
-.input-group {
-  animation: slideUp 0.6s ease forwards;
-  opacity: 0;
-  transform: translateY(20px);
-  
-  &:nth-child(1) { animation-delay: 0.1s; }
-  &:nth-child(2) { animation-delay: 0.2s; }
-}
-
 @keyframes slideUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 // Modo escuro
 @media (prefers-color-scheme: dark) {
-  :host {
-    --card-background: rgba(47, 47, 47, 0.95);
-  }
+  :host { --card-background: rgba(47, 47, 47, 0.95); }
   
   .gradient-background {
     --background: linear-gradient(135deg, var(--ion-color-dark) 0%, #3a1a3a 50%, #2d1b2d 100%);
@@ -224,53 +189,88 @@
     
     ion-card-title {
       color: var(--secondary-color);
-      
-      .welcome-icon {
-        color: var(--primary-light);
-      }
+      .welcome-icon { color: var(--primary-light); }
     }
     
-    ion-card-subtitle {
-      color: #a0a0a0;
-    }
+    ion-card-subtitle { color: #a0a0a0; }
   }
   
   .custom-input {
     background: rgba(247, 218, 239, 0.05) !important;
     border-color: rgba(247, 218, 239, 0.3) !important;
     
-    .input-field {
-      color: var(--secondary-color) !important;
-    }
+    .input-field { color: var(--secondary-color) !important; }
   }
   
   .register-button {
     --color: var(--secondary-color);
-    
-    &:hover {
-      --color: var(--primary-light);
-    }
+    &:hover { --color: var(--primary-light); }
   }
 }
 
 // Responsividade
-@media (max-height: 700px) {
+@media (max-height: 800px) {
   .login-container {
+    padding: 15px 20px;
     justify-content: flex-start;
-    padding-top: 40px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
-  .welcome-section {
-    margin-bottom: 20px;
+  .welcome-section { margin-bottom: 20px; }
+  .welcome-card, .login-card { border-radius: 16px; }
+  .login-card ion-card-content { padding: 25px 20px; }
+}
+
+@media (max-height: 600px) {
+  .login-container { padding: 10px 15px; }
+  .welcome-section { margin-bottom: 15px; }
+  
+  .welcome-card {
+    ion-card-header { padding: 20px 16px; }
+    ion-card-title {
+      font-size: 1.3rem;
+      .welcome-icon { font-size: 1.6rem; }
+    }
+  }
+  
+  .login-card ion-card-content { padding: 20px 16px; }
+  .form-container { gap: 16px; }
+  
+  .custom-input {
+    --min-height: 52px;
+    .input-icon { font-size: 1.1rem; }
+  }
+  
+  .login-button, .register-button {
+    height: 48px;
+    font-size: 1rem;
   }
 }
 
 @media (max-width: 480px) {
   .login-container {
     padding: 15px;
+    max-width: 100%;
   }
   
-  .welcome-card, .login-card {
-    border-radius: 16px;
-  }
+  .welcome-card, .login-card { border-radius: 16px; }
+  .login-card ion-card-content { padding: 25px 16px; }
 }
+
+@media (max-width: 360px) {
+  .login-container { padding: 10px; }
+  
+  .welcome-card {
+    ion-card-header { padding: 16px 12px; }
+    ion-card-title {
+      font-size: 1.2rem;
+      .welcome-icon { font-size: 1.4rem; }
+    }
+  }
+  
+  .login-card ion-card-content { padding: 20px 12px; }
+  .form-container { gap: 14px; }
+}
+
+ion-content { --overflow: auto; }

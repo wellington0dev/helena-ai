@@ -9,6 +9,7 @@ import { Router } from '@angular/router';
   standalone: false
 })
 export class RegisterPage {
+  name = '';
   email = '';
   password = '';
   confirmPassword = '';
@@ -21,8 +22,15 @@ export class RegisterPage {
     this.loading = true;
     this.errorMsg = '';
 
-    if (!this.email || !this.password || !this.confirmPassword) {
+    // Validações
+    if (!this.name || !this.email || !this.password || !this.confirmPassword) {
       this.errorMsg = 'Por favor, preencha todos os campos';
+      this.loading = false;
+      return;
+    }
+
+    if (this.name.length < 2) {
+      this.errorMsg = 'O nome deve ter pelo menos 2 caracteres';
       this.loading = false;
       return;
     }
@@ -47,8 +55,8 @@ export class RegisterPage {
     }
 
     try {
-      await this.auth.register(this.email, this.password);
-      this.router.navigateByUrl('/chat', { replaceUrl: true });
+      await this.auth.register(this.name, this.email, this.password);
+      this.router.navigateByUrl('/', { replaceUrl: true });
     } catch (err: any) {
       this.errorMsg = err.message || 'Erro ao criar conta';
     }
@@ -77,10 +85,12 @@ export class RegisterPage {
   }
 
   isFormValid(): boolean {
-    return !!this.email &&
-      !!this.password &&
-      !!this.confirmPassword &&
-      this.passwordsMatch() &&
-      this.password.length >= 6;
+    return !!this.name &&
+           !!this.email &&
+           !!this.password &&
+           !!this.confirmPassword &&
+           this.passwordsMatch() &&
+           this.password.length >= 6 &&
+           this.name.length >= 2;
   }
 }

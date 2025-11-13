@@ -1,6 +1,6 @@
 export interface Message {
   id?: string;
-  role: string;
+  sender: string;
   text: string;
   type: TypeMessage;
   datetime: number;

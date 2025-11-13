@@ -58,7 +58,7 @@ export class AiService {
     const msgRef = ref(this.db, `users/${uid}/chat/messages/${messageId}`);
 
     const message: Message = {
-      role: 'user',
+      sender: 'user',
       text: text.trim(),
       type: TypeMessage.TEXT,
       datetime: Date.now()
@@ -98,8 +98,8 @@ Responda de forma natural e contextualizada considerando o histórico acima.
       const msgId = uuidv4();
       const msgRef = ref(this.db, `users/${uid}/chat/messages/${msgId}`);
 
-      const message = {
-        role: "Helena",
+      const message:Message = {
+        sender: "Helena",
         text: reply,
         type: TypeMessage.TEXT,
         datetime: Date.now()
@@ -127,8 +127,8 @@ Responda de forma natural e contextualizada considerando o histórico acima.
     }
 
     return messages.map(msg => {
-      const role = msg.role === 'user' ? 'Usuário' : 'Helena';
-      return `${role}: ${msg.text}`;
+      const sender = msg.sender === 'user' ? 'Usuário' : 'Helena';
+      return `${sender}: ${msg.text}`;
     }).join('\n');
   }
 
@@ -218,8 +218,8 @@ Resumo atualizado do contexto:
 
   // Método para obter estatísticas do chat (opcional)
   getChatStats(messages: Message[]) {
-    const userMessages = messages.filter(msg => msg.role === 'user').length;
-    const assistantMessages = messages.filter(msg => msg.role === 'Helena').length;
+    const userMessages = messages.filter(msg => msg.sender === this.user?.name).length;
+    const assistantMessages = messages.filter(msg => msg.sender === 'Helena').length;
     const totalMessages = messages.length;
 
     return {
@@ -230,7 +230,6 @@ Resumo atualizado do contexto:
     };
   }
 
-  // Método opcional para limpar o chat
   async clearChat(): Promise<void> {
     const uid = this.getUid();
     const chatRef = ref(this.db, `users/${uid}/chat/messages`);

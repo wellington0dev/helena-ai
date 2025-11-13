@@ -5,7 +5,8 @@ import {
   signOut, 
   onAuthStateChanged, 
   User,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  updateProfile
 } from "firebase/auth";
 import { app } from '../firebase';
 
@@ -26,8 +27,16 @@ export class AuthService {
     return signInWithEmailAndPassword(this.auth, email, password);
   }
 
-  register(email: string, password: string) {
-    return createUserWithEmailAndPassword(this.auth, email, password);
+  async register(name: string, email: string, password: string) {
+    // Cria o usuário
+    const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+    
+    // Atualiza o perfil com o nome
+    await updateProfile(userCredential.user, {
+      displayName: name
+    });
+
+    return userCredential;
   }
 
   logout() {
@@ -40,5 +49,9 @@ export class AuthService {
 
   getUser() {
     return this.currentUser;
+  }
+
+  getUserName(): string {
+    return this.currentUser?.displayName || this.currentUser?.email?.split('@')[0] || 'Usuário';
   }
 }

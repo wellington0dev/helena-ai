@@ -3,6 +3,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { AiService } from 'src/app/services/ai.service';
 import { IonContent } from '@ionic/angular';
 import { Message, TypeMessage } from 'src/app/models/message.model';
+import { User } from 'src/app/models/user.model';
 
 @Component({
   selector: 'app-chat',
@@ -13,7 +14,9 @@ import { Message, TypeMessage } from 'src/app/models/message.model';
 export class ChatPage implements OnInit, OnDestroy {
   @ViewChild(IonContent, { static: false }) content!: IonContent;
 
-  messages: any[] = [];
+  user: User | null = null;
+
+  messages: Message[] = [];
   inputText: string = '';
   loading: boolean = false;
   showScrollButton: boolean = false;
@@ -27,8 +30,8 @@ export class ChatPage implements OnInit, OnDestroy {
 
     this.authUnsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        this.user = new User(user);
         await this.loadMessages();
-        console.log(this.messages)
       }
     });
   }
@@ -59,7 +62,7 @@ export class ChatPage implements OnInit, OnDestroy {
 
     try {
       const userMsg: Message = {
-        role: 'user',
+        sender: this.user?.name || "user",
         text: userMessage,
         type: TypeMessage.TEXT,
         datetime: Date.now()
@@ -106,8 +109,8 @@ export class ChatPage implements OnInit, OnDestroy {
 
   getMessageTime(index: number): string {
     const message = this.messages[index];
-    if (message && message.timestamp) {
-      return new Date(message.timestamp).toLocaleTimeString('pt-BR', {
+    if (message && message.datetime) {
+      return new Date(message.datetime).toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit'
       });
@@ -129,19 +132,19 @@ export class ChatPage implements OnInit, OnDestroy {
     const currentMsg = this.messages[index];
     const previousMsg = this.messages[index - 1];
 
-    if (!currentMsg.timestamp || !previousMsg.timestamp) return false;
+    if (!currentMsg.datetime || !previousMsg.datetime) return false;
 
-    const currentDate = new Date(currentMsg.timestamp).toDateString();
-    const previousDate = new Date(previousMsg.timestamp).toDateString();
+    const currentDate = new Date(currentMsg.datetime).toDateString();
+    const previousDate = new Date(previousMsg.datetime).toDateString();
 
     return currentDate !== previousDate;
   }
 
   getDaySeparator(index: number): string {
     const message = this.messages[index];
-    if (!message.timestamp) return '';
+    if (!message.datetime) return '';
 
-    const date = new Date(message.timestamp);
+    const date = new Date(message.datetime);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
