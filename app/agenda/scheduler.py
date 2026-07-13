@@ -1,0 +1,43 @@
+"""APScheduler embarcado — varre a agenda a cada 3h (CLAUDE.md §9).
+
+Iniciado a partir do `run.py` (nunca em `create_app`, que roda nos testes).
+O job empurra o contexto de app para acessar o banco.
+"""
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from app.agenda.scan import scan_and_enqueue
+
+_scheduler: BackgroundScheduler | None = None
+
+
+def start_scheduler(app) -> BackgroundScheduler:
+    """Cria e inicia o scheduler com o job de 3h. Idempotente.
+
+    Assume processo único (CLAUDE.md §2). Se um dia rodar com múltiplos workers,
+    cada worker subiria um scheduler → scans duplicados; nesse caso seria preciso
+    eleição de líder ou mover o job para fora dos workers.
+    """
+    global _scheduler
+    if _scheduler is not None:
+        return _scheduler
+
+    scheduler = BackgroundScheduler(daemon=True)
+
+    def _job():
+        with app.app_context():
+            n = scan_and_enqueue()
+            if n:
+                app.logger.info("scan da agenda enfileirou %s notificações", n)
+
+    # primeira execução em ~3h (default do interval); o scan inline dentro de
+    # create_reminder cobre lembretes imediatos
+    scheduler.add_job(
+        _job,
+        trigger="interval",
+        hours=3,
+        id="agenda_scan",
+        replace_existing=True,
+    )
+    scheduler.start()
+    _scheduler = scheduler
+    return scheduler

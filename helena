@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Wrapper do CLI da Helena: roda dentro do ambiente uv, de qualquer diretório
+# (resolve symlink para o repositório real, então pode ser linkado no PATH).
+set -e
+DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+cd "$DIR"
+if command -v uv >/dev/null 2>&1; then
+  exec uv run python cli.py "$@"
+else
+  exec python3 cli.py "$@"
+fi

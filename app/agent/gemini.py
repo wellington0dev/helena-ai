@@ -1,0 +1,181 @@
+"""Cliente Gemini + loop de tool-calling."""
+import time
+from collections.abc import Callable
+
+from google import genai
+from google.genai import types
+
+from app.agent import context as ctx
+from app.agent.tools import TOOL_DECLARATIONS, execute_tool
+
+_client: genai.Client | None = None
+
+# Quantas respostas VAZIAS (candidato STOP sem partes: nem tool, nem texto)
+# tolerar em sequência antes de desistir. O Gemini às vezes devolve um no-op
+# degenerado (comum ao pedir áudio); reamostrar o mesmo passo costuma resolver.
+_MAX_EMPTY_RETRIES = 3
+
+# marcador do turno de imagem injetado (screenshot) — usado para manter só o
+# print mais recente no contexto (evita empilhar imagens full-res num loop)
+_SCREENSHOT_MARKER = "[Captura de tela atual:]"
+
+
+def get_client(api_key: str) -> genai.Client:
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=api_key)
+    return _client
+
+
+def _is_screenshot_turn(content) -> bool:
+    """True se `content` é um turno de screenshot injetado (para descartá-lo e
+    manter só o mais recente)."""
+    try:
+        parts = content.parts or []
+        return bool(parts) and getattr(parts[0], "text", None) == _SCREENSHOT_MARKER
+    except AttributeError:
+        return False
+
+
+def run_agent(
+    user_id: int,
+    api_key: str,
+    model: str,
+    max_iters: int,
+    *,
+    system_instruction: str | None = None,
+    initial_contents: list | None = None,
+    tool_declarations: types.Tool | None = None,
+    dispatch: Callable[[str, dict, int], dict] | None = None,
+    on_progress: Callable[[str], None] | None = None,
+    deadline: float | None = None,
+) -> tuple[str, bool]:
+    """Roda o loop de tool-calling e devolve `(texto_final, alguma_tool_executou)`.
+
+    Sem overrides, roda o turno de CHAT do usuário (contexto/tools do chat). Os
+    overrides permitem reusá-lo como loop de agente autônomo em background:
+    - `system_instruction`/`initial_contents`: objetivo e ponto de partida próprios;
+    - `tool_declarations`/`dispatch`: conjunto de tools alternativo;
+    - `on_progress(texto)`: recebe o texto que o modelo escreve JUNTO das tool
+      calls em cada passo — é o "feedback contínuo" (ex.: "já entendi X, seguindo");
+    - `deadline`: instante (time.monotonic) para parar por timeout.
+
+    Termina naturalmente quando o modelo para de chamar tools (o texto final vira
+    a entrega) — de propósito não há tool `finalizar` que o modelo poderia narrar
+    sem chamar. O booleano distingue um turno que agiu de um no-op puro.
+    """
+    client = get_client(api_key)
+    if system_instruction is None:
+        system_instruction = ctx.build_system_instruction(user_id)
+    contents = initial_contents if initial_contents is not None else ctx.build_history(user_id)
+    dispatch = dispatch or execute_tool
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[tool_declarations or TOOL_DECLARATIONS],
+        # desliga a execução automática — despachamos nós mesmos (escopo + DB)
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            disable=True
+        ),
+    )
+
+    final_text = ""
+    tool_executed = False
+    last_sig = None
+    empty_retries = 0
+    for _ in range(max_iters):
+        if deadline is not None and time.monotonic() > deadline:
+            break
+
+        response = client.models.generate_content(
+            model=model, contents=contents, config=config
+        )
+
+        # resposta bloqueada/vazia (safety, sem candidatos) → fecha amigável
+        if not response.candidates:
+            final_text = (
+                "Hmm, não consegui formular uma resposta pra isso agora. "
+                "Tenta de outro jeito?"
+            )
+            break
+
+        calls = response.function_calls or []
+        step_text = (response.text or "").strip()
+
+        # Resposta DEGENERADA: candidato STOP porém vazio (0 partes — nem tool,
+        # nem texto). É um no-op transitório do Gemini (frequente ao pedir
+        # áudio), não uma resposta final. Reamostra o MESMO passo algumas vezes
+        # antes de desistir — costuma virar uma chamada de tool de verdade.
+        if not calls and not step_text:
+            empty_retries += 1
+            if empty_retries <= _MAX_EMPTY_RETRIES:
+                continue
+            break
+        empty_retries = 0  # passo produtivo → zera a contagem de vazios
+
+        if not calls:
+            final_text = step_text
+            break
+
+        # texto que acompanha as tool calls = feedback de progresso
+        if step_text and on_progress is not None:
+            on_progress(step_text)
+
+        # detector de "empacamento": mesma(s) chamada(s) repetida(s) → encerra
+        sig = tuple((c.name, str(dict(c.args or {}))) for c in calls)
+        if sig == last_sig:
+            break
+        last_sig = sig
+
+        tool_executed = True
+        # registra o turno do modelo (as function calls) no histórico
+        contents.append(response.candidates[0].content)
+
+        # executa cada tool e devolve os resultados
+        tool_parts = []
+        pending = False
+        images: list[tuple[str, bytes]] = []
+        for call in calls:
+            result = dispatch(call.name, dict(call.args or {}), user_id)
+            if isinstance(result, dict):
+                if result.get("pending_approval"):
+                    pending = True
+                # imagem a INJETAR (ex.: screenshot) — não cabe no function_response
+                # (que é JSON); sai daqui e entra como turno de imagem separado.
+                img = result.pop("__inject_image__", None)
+                mime = result.pop("__inject_mime__", "image/png")
+                if img is not None:
+                    images.append((mime, img))
+            tool_parts.append(
+                types.Part.from_function_response(
+                    name=call.name, response=result
+                )
+            )
+        contents.append(types.Content(role="tool", parts=tool_parts))
+
+        # injeta as imagens capturadas como um turno de "usuário" para o modelo
+        # VER (padrão computer-use: function_response leva JSON, a imagem vem à
+        # parte). É isso que permite a Helena enxergar a tela e agir.
+        if images:
+            # mantém só o screenshot MAIS RECENTE no contexto: descarta os turnos
+            # de imagem anteriores (num loop ver→agir→ver, empilhar prints full-res
+            # estoura o tamanho da request).
+            contents = [c for c in contents if not _is_screenshot_turn(c)]
+            parts = [types.Part.from_text(text=_SCREENSHOT_MARKER)]
+            for mime, data in images:
+                parts.append(types.Part.from_bytes(data=data, mime_type=mime))
+            contents.append(types.Content(role="user", parts=parts))
+
+        # uma tool pediu permissão ao usuário (ex.: executar_shell) → PARA o
+        # turno aqui; a mensagem de pedido já foi persistida e o agente só
+        # continua depois que o usuário decidir (via endpoint de decisão).
+        if pending:
+            break
+    else:
+        # esgotou iterações sem resposta final — força um fechamento simples
+        final_text = final_text or (
+            "Fiz o que pude aqui, mas me embananei um pouco. "
+            "Pode repetir do seu jeito?"
+        )
+
+    return final_text or "", tool_executed
