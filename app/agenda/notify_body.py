@@ -5,7 +5,6 @@ Best-effort: se o Gemini falhar, cai num fallback simples (CLAUDE.md §9).
 from flask import current_app
 from google.genai import types
 
-from app.agent.gemini import get_client
 from app.models import Reminder, UserProfile
 from app.extensions import db
 
@@ -32,6 +31,8 @@ def generate_body(reminder: Reminder, stage: str, when=None) -> str:
     """Texto da notificação para uma etapa. Nunca levanta — usa fallback.
     `when` (opcional) = momento da ocorrência (usado nos recorrentes)."""
     try:
+        from app.agent.gemini import get_client  # import tardio (evita ciclo)
+
         cfg = current_app.config
         nome = None
         prof = db.session.get(UserProfile, reminder.user_id)

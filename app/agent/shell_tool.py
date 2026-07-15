@@ -163,6 +163,8 @@ def execute_recorded(rec: ShellCommand) -> int:
     agente reagir a ela no re-invoke)."""
     result = run_shell(rec.command)
     out_id = _persist_output(rec.user_id, rec.command, result)
+    from app import audit
+    audit.record(rec.user_id, "shell", rec.command, result["exit_code"])
     with write_lock:
         rec.status = "error" if (result["timeout"] or (result["exit_code"] not in (0, None))) else "done"
         rec.stdout = result["stdout"]
@@ -200,9 +202,11 @@ def check_budget() -> str | None:
 
 
 def run_direct(user_id: int, command: str) -> dict:
-    """Executa JÁ (sem card) e persiste a saída no chat. Auditado no run_shell."""
+    """Executa JÁ (sem card) e persiste a saída no chat + trilha de auditoria."""
     result = run_shell(command)
     _persist_output(user_id, command, result)
+    from app import audit
+    audit.record(user_id, "shell", command, result["exit_code"])
     return {
         "ok": True,
         "executed": True,

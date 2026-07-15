@@ -38,6 +38,42 @@ def start_scheduler(app) -> BackgroundScheduler:
         id="agenda_scan",
         replace_existing=True,
     )
+
+    from app.agenda.routine_scheduler import run_due_routines
+
+    def _routines_job():
+        with app.app_context():
+            n = run_due_routines()
+            if n:
+                app.logger.info("scheduler executou %s rotina(s) agendada(s)", n)
+
+    scheduler.add_job(
+        _routines_job,
+        trigger="interval",
+        minutes=5,
+        id="routine_scheduler",
+        replace_existing=True,
+        coalesce=True,           # se perdeu ticks, roda 1x só
+        misfire_grace_time=300,
+    )
+
+    from app.federation.cleanup import purge_expired_nonces
+
+    def _federation_nonce_cleanup_job():
+        with app.app_context():
+            n = purge_expired_nonces()
+            if n:
+                app.logger.info("federação: purgou %s nonce(s) expirado(s)", n)
+
+    scheduler.add_job(
+        _federation_nonce_cleanup_job,
+        trigger="interval",
+        minutes=15,
+        id="federation_nonce_cleanup",
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=300,
+    )
     scheduler.start()
     _scheduler = scheduler
     return scheduler

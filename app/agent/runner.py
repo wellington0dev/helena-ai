@@ -91,4 +91,11 @@ def handle_user_turn(user_id: int, since_msg_id: int) -> list[Message]:
     except Exception as exc:  # noqa: BLE001 — resumo não deve derrubar a resposta
         current_app.logger.warning("resumo rolante falhou: %s", exc)
 
+    # memória de longo prazo: consolida notas antigas no perfil (best-effort)
+    try:
+        from app.agent import memory
+        memory.maybe_consolidate(user_id=user_id, api_key=api_key, model=model)
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.warning("consolidação de memória falhou: %s", exc)
+
     return replies

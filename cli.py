@@ -240,6 +240,10 @@ def cmd_config(args) -> int:
 
 
 def cmd_start(args) -> int:
+    if service_installed():  # fonte única da verdade: delega ao serviço
+        _service_action("start")
+        print(ok("✓ serviço iniciado"))
+        return _wait_health()
     pid = running_pid()
     if pid:
         print(warn(f"Já está rodando (pid {pid})."))
@@ -296,11 +300,11 @@ def _kill_tree(pid: int, force: bool) -> None:
         pass
 
 
-def cmd_stop(args) -> int:
+def _stop_pidfile() -> bool:
+    """Para o servidor em background (pidfile). True se havia algo pra parar."""
     pid = running_pid()
     if not pid:
-        print(dim("Não está rodando."))
-        return 0
+        return False
     _kill_tree(pid, force=False)
     for _ in range(20):  # espera até 10s o encerramento gracioso
         if running_pid() is None:
@@ -309,7 +313,18 @@ def cmd_stop(args) -> int:
     if running_pid() is not None:
         _kill_tree(pid, force=True)
     PID_FILE.unlink(missing_ok=True)
-    print(ok("✓ parado."))
+    return True
+
+
+def cmd_stop(args) -> int:
+    if service_installed():  # delega ao serviço
+        _service_action("stop")
+        print(ok("✓ serviço parado."))
+        return 0
+    if _stop_pidfile():
+        print(ok("✓ parado."))
+    else:
+        print(dim("Não está rodando."))
     return 0
 
 
@@ -320,6 +335,8 @@ def cmd_restart(args) -> int:
 
 
 def cmd_status(args) -> int:
+    if service_installed():  # fonte única da verdade
+        return _service_status()
     pid = running_pid()
     port = env_port()
     healthy = health_ok(port) if pid else False
@@ -359,17 +376,40 @@ def _git(*a) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *a], cwd=str(ROOT), capture_output=True, text=True)
 
 
-def cmd_update(args) -> int:
+def _apply_restart() -> None:
+    """Reinicia o servidor pra carregar o código novo (serviço ou pidfile)."""
+    if service_installed():
+        _service_action("restart")
+        print(ok("✓ serviço reiniciado (código novo aplicado)."))
+    elif running_pid():
+        cmd_restart(None)
+    else:
+        print(dim("Rode 'helena start' para aplicar."))
+
+
+def _update_code() -> int:
+    """Aplica mudanças que VOCÊ fez no código local: re-sincroniza deps e reinicia.
+    (Não mexe no git — serve pra árvore com alterações locais.)"""
+    print(dim("sincronizando dependências (uv sync)..."))
+    if subprocess.run(["uv", "sync"], cwd=str(ROOT)).returncode != 0:
+        print(warn("'uv sync' falhou. Rode manualmente."))
+        return 1
+    _apply_restart()
+    print(ok("✓ código local aplicado."))
+    return 0
+
+
+def _update_git() -> int:
     if not (ROOT / ".git").exists():
         print(warn("Isto não é um clone git (baixado como zip?). Atualize baixando a versão nova."))
         return 1
     if _git("rev-parse", "--is-inside-work-tree").returncode != 0:
         print(err("git indisponível ou repositório inválido."))
         return 1
-    # árvore suja → não arrisca
     dirty = _git("status", "--porcelain").stdout.strip()
     if dirty:
-        print(warn("Há mudanças locais não commitadas — resolva antes de atualizar:"))
+        print(warn("Há mudanças locais não commitadas — use 'helena update code' para aplicá-las,"))
+        print(warn("ou commite/descarte antes de puxar do git:"))
         print(dim(dirty))
         return 1
     up = _git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
@@ -394,8 +434,14 @@ def cmd_update(args) -> int:
     if subprocess.run(["uv", "sync"], cwd=str(ROOT)).returncode != 0:
         print(warn("git ok, mas 'uv sync' falhou. Rode 'uv sync' manualmente."))
         return 1
-    print(ok("✓ atualizado! Rode 'helena restart' para aplicar."))
+    _apply_restart()  # só chega aqui se houve mudança (behind != 0)
+    print(ok("✓ atualizado."))
     return 0
+
+
+def cmd_update(args) -> int:
+    mode = getattr(args, "action", None) or "git"
+    return _update_code() if mode == "code" else _update_git()
 
 
 def cmd_doctor(args) -> int:
@@ -420,8 +466,17 @@ def cmd_doctor(args) -> int:
     return 0
 
 
+def _find_user_row(con: sqlite3.Connection, identifier: str):
+    """Busca por email primeiro (identificador principal agora); cai pra
+    username (contas antigas / bookkeeping interno gerado no registro)."""
+    row = con.execute("SELECT id, username FROM users WHERE email=?", (identifier,)).fetchone()
+    if row is None:
+        row = con.execute("SELECT id, username FROM users WHERE username=?", (identifier,)).fetchone()
+    return row
+
+
 def cmd_users(args) -> int:
-    """Lista usuários e define quem é PRINCIPAL (pode pedir execução de comandos)."""
+    """Lista usuários e define permissão/email."""
     dbp = _db_path()
     if not dbp.exists():
         print(warn("Banco não encontrado — rode o servidor ao menos uma vez ('helena start')."))
@@ -429,52 +484,392 @@ def cmd_users(args) -> int:
     con = sqlite3.connect(str(dbp))
     con.execute("PRAGMA busy_timeout=5000")
     cols = {r[1] for r in con.execute("PRAGMA table_info(users)")}
-    if "is_principal" not in cols or "shell_full_control" not in cols:
-        print(warn("Colunas de permissão ainda não existem — reinicie o servidor ('helena restart') para migrar."))
+    if not {"is_principal", "shell_full_control", "name"} <= cols:
+        print(warn("Colunas novas ainda não existem — reinicie o servidor ('helena restart') para migrar."))
         return 1
 
     action = args.action or "list"
+
     if action == "list":
         rows = con.execute(
-            "SELECT id, username, is_principal, shell_full_control FROM users ORDER BY id"
+            "SELECT id, username, email, name, is_principal, shell_full_control FROM users ORDER BY id"
         ).fetchall()
         if not rows:
             print(dim("Nenhum usuário cadastrado."))
             return 0
         print(bold("Usuários:"))
-        for uid, uname, principal, full in rows:
+        for uid, uname, email, name, principal, full in rows:
+            label = email or f"{uname} (sem email — conta antiga)"
+            if name:
+                label = f"{label}  [{name}]"
             if full:
                 tag = err("⚡ controle absoluto")
             elif principal:
                 tag = ok("★ principal")
             else:
                 tag = dim("normal")
-            print(f"  {uid:>3}  {uname:<22} {tag}")
+            print(f"  {uid:>3}  {label:<40} {tag}")
         print(dim("\nNíveis: normal → principal (com aprovação) → fullcontrol (sem aprovação)."))
-        print(dim("Ex.: helena users principal <username> | helena users fullcontrol <username> | helena users normal <username>"))
+        print(dim("Ex.: helena users principal <email> | helena users fullcontrol <email> | helena users normal <email>"))
+        print(dim("Conta antiga sem email? helena users email <username_antigo> <novo@email.com>"))
         return 0
 
-    if not args.username:
-        print(err(f"uso: helena users {action} <username>"))
+    if action == "email":
+        if not args.identifier or not args.value:
+            print(err("uso: helena users email <email_ou_username_atual> <novo_email>"))
+            return 2
+        row = _find_user_row(con, args.identifier)
+        if row is None:
+            print(err(f"usuário '{args.identifier}' não encontrado (veja 'helena users')"))
+            return 1
+        uid, uname = row
+        new_email = args.value.strip().lower()
+        try:
+            with con:
+                con.execute("UPDATE users SET email=? WHERE id=?", (new_email, uid))
+        except sqlite3.IntegrityError:
+            print(err(f"email '{new_email}' já está em uso por outra conta."))
+            return 1
+        print(ok(f"✓ {uname} (id {uid}) agora tem email {new_email}."))
+        return 0
+
+    if not args.identifier:
+        print(err(f"uso: helena users {action} <email_ou_username>"))
         return 2
-    row = con.execute("SELECT id FROM users WHERE username=?", (args.username,)).fetchone()
+    row = _find_user_row(con, args.identifier)
     if row is None:
-        print(err(f"usuário '{args.username}' não encontrado (veja 'helena users')"))
+        print(err(f"usuário '{args.identifier}' não encontrado (veja 'helena users')"))
         return 1
+    uid, uname = row
 
     principal_v, full_v = {"fullcontrol": (1, 1), "principal": (1, 0), "normal": (0, 0)}[action]
     with con:
         con.execute(
-            "UPDATE users SET is_principal=?, shell_full_control=? WHERE username=?",
-            (principal_v, full_v, args.username),
+            "UPDATE users SET is_principal=?, shell_full_control=? WHERE id=?",
+            (principal_v, full_v, uid),
         )
     if action == "fullcontrol":
-        print(err(f"⚡ {args.username} agora tem CONTROLE ABSOLUTO — a Helena roda QUALQUER comando SEM pedir aprovação."))
-        print(dim("   Cada comando ainda aparece no chat depois de rodar. Reverta com: helena users principal|normal " + args.username))
+        print(err(f"⚡ {uname} agora tem CONTROLE ABSOLUTO — a Helena roda QUALQUER comando SEM pedir aprovação."))
+        print(dim("   Cada comando ainda aparece no chat depois de rodar. Reverta com: helena users principal|normal " + args.identifier))
     elif action == "principal":
-        print(ok(f"✓ {args.username} agora é PRINCIPAL — pode pedir comandos (com aprovação no chat)."))
+        print(ok(f"✓ {uname} agora é PRINCIPAL — pode pedir comandos (com aprovação no chat)."))
     else:
-        print(ok(f"✓ {args.username} agora é usuário normal — não pode executar comandos."))
+        print(ok(f"✓ {uname} agora é usuário normal — não pode executar comandos."))
+    return 0
+
+
+def cmd_chat(args) -> int:
+    """Chat em texto puro, login por email+senha. Import tardio: chat_cli usa
+    requests, ao contrário do resto do cli.py (stdlib-only)."""
+    try:
+        import chat_cli
+    except ImportError as e:
+        print(err(f"dependência faltando ({e}) — rode dentro do venv: 'uv run python cli.py chat'"))
+        return 1
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return chat_cli.run(args, DATA_DIR, f"http://127.0.0.1:{env_port()}")
+
+
+# ---------- serviço do sistema (systemd user no Linux / tarefa no Windows) ----------
+# De propósito é um serviço de USUÁRIO (não root/system): só assim ele enxerga a
+# sessão gráfica — controle de desktop (tela/mouse) morre num serviço de sistema.
+SERVICE_NAME = "helena"
+_UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
+_UNIT = _UNIT_DIR / f"{SERVICE_NAME}.service"
+_UPD_SERVICE = _UNIT_DIR / f"{SERVICE_NAME}-update.service"
+_UPD_TIMER = _UNIT_DIR / f"{SERVICE_NAME}-update.timer"
+_WIN_TASK = "Helena"
+_WIN_UPD_TASK = "HelenaUpdate"
+_GFX_ENV = (
+    "WAYLAND_DISPLAY", "DISPLAY", "XDG_RUNTIME_DIR", "XDG_CURRENT_DESKTOP",
+    "HYPRLAND_INSTANCE_SIGNATURE", "YDOTOOL_SOCKET", "PATH",
+)
+
+
+def _systemctl(*args) -> subprocess.CompletedProcess:
+    return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True)
+
+
+def service_installed() -> bool:
+    if IS_WIN:
+        return subprocess.run(
+            ["schtasks", "/Query", "/TN", _WIN_TASK], capture_output=True
+        ).returncode == 0
+    return _UNIT.exists()
+
+
+def _service_active() -> bool:
+    if IS_WIN:
+        r = subprocess.run(
+            ["schtasks", "/Query", "/TN", _WIN_TASK, "/FO", "LIST", "/V"],
+            capture_output=True, text=True,
+        )
+        return "Running" in r.stdout
+    return _systemctl("is-active", SERVICE_NAME).stdout.strip() == "active"
+
+
+def _service_action(action: str) -> None:  # start | stop | restart
+    if IS_WIN:
+        if action in ("stop", "restart"):
+            subprocess.run(["schtasks", "/End", "/TN", _WIN_TASK], capture_output=True)
+        if action in ("start", "restart"):
+            subprocess.run(["schtasks", "/Run", "/TN", _WIN_TASK], capture_output=True)
+        return
+    _systemctl(action, SERVICE_NAME)
+
+
+def _wait_health() -> int:
+    port = env_port()
+    for _ in range(30):
+        if health_ok(port):
+            print(ok(f"✓ no ar em http://localhost:{port}"))
+            return 0
+        time.sleep(0.5)
+    print(warn("iniciado, mas /health ainda não respondeu. Veja 'helena logs'."))
+    return 0
+
+
+def _server_python_win() -> str:
+    return str(ROOT / ".venv" / "Scripts" / "pythonw.exe")
+
+
+def _service_install() -> int:
+    if not ENV.exists():
+        print(warn("Configure antes: 'helena setup'."))
+        return 1
+    if IS_WIN:
+        # Tarefa no LOGON (não Windows Service): serviço roda na Session 0, isolada
+        # do desktop — mouse/tela não funcionariam. Tarefa no logon usa a sessão.
+        tr = f'cmd /c cd /d "{ROOT}" && "{_server_python_win()}" "{RUN_PY}"'
+        r = subprocess.run(
+            ["schtasks", "/Create", "/TN", _WIN_TASK, "/SC", "ONLOGON",
+             "/RL", "LIMITED", "/F", "/TR", tr],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            print(err("falha ao criar a tarefa:")); print(dim(r.stderr)); return 1
+        subprocess.run(["schtasks", "/Run", "/TN", _WIN_TASK], capture_output=True)
+        print(ok("✓ instalado como tarefa de logon (roda ao entrar no Windows)."))
+        return 0
+
+    _stop_pidfile()  # evita conflito de porta com um server em background
+    _UNIT_DIR.mkdir(parents=True, exist_ok=True)
+    py = _server_python()
+    # snapshot do ambiente gráfico (frágil, mas estável num desktop single-user)
+    env_lines = "\n".join(
+        f'Environment="{k}={os.environ[k]}"' for k in _GFX_ENV if os.environ.get(k)
+    )
+    _UNIT.write_text(
+        "[Unit]\n"
+        "Description=Helena — servidor da assistente pessoal\n"
+        "After=graphical-session.target\n"
+        "PartOf=graphical-session.target\n"
+        "Wants=graphical-session.target\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        f"WorkingDirectory={ROOT}\n"
+        f"ExecStart={py} {RUN_PY}\n"
+        "Restart=on-failure\n"
+        "RestartSec=3\n"
+        f"{env_lines}\n\n"
+        "[Install]\n"
+        "WantedBy=default.target\n"
+    )
+    _systemctl("daemon-reload")
+    # backup do snapshot: injeta o env gráfico no manager de usuário
+    subprocess.run(
+        ["systemctl", "--user", "import-environment", *[k for k in _GFX_ENV if k != "PATH"]],
+        capture_output=True,
+    )
+    r = _systemctl("enable", "--now", SERVICE_NAME)
+    if r.returncode != 0:
+        print(err("falha ao habilitar o serviço:")); print(dim(r.stderr)); return 1
+    print(ok(f"✓ serviço instalado e rodando (systemd user: {SERVICE_NAME})."))
+    print(dim("Sobe sozinho ao logar. IMPORTANTE: o controle de desktop (tela/mouse) só"))
+    print(dim("dá pra confirmar após um LOGOUT/LOGIN real — não só agora."))
+    return _wait_health()
+
+
+def _service_uninstall() -> int:
+    if IS_WIN:
+        subprocess.run(["schtasks", "/Delete", "/TN", _WIN_TASK, "/F"], capture_output=True)
+        print(ok("✓ tarefa removida.")); return 0
+    _systemctl("disable", "--now", SERVICE_NAME)
+    _UNIT.unlink(missing_ok=True)
+    _systemctl("daemon-reload")
+    print(ok("✓ serviço removido.")); return 0
+
+
+def _service_status() -> int:
+    if not service_installed():
+        print(dim("Serviço não instalado (rode 'helena service install')."))
+        return 0
+    active = _service_active()
+    print(f"serviço:   {ok('rodando') if active else dim('parado')}"
+          f"  ({'tarefa de logon' if IS_WIN else 'systemd user'})")
+    if active:
+        port = env_port()
+        print(f"saúde:     {ok('/health ok') if health_ok(port) else warn('não responde')}")
+        print(f"url:       http://localhost:{port}")
+    return 0
+
+
+def cmd_service(args) -> int:
+    action = args.action
+    if action == "install":
+        return _service_install()
+    if action == "uninstall":
+        return _service_uninstall()
+    if action == "status":
+        return _service_status()
+    if action in ("start", "stop", "restart"):
+        if not service_installed():
+            print(warn("Serviço não instalado.")); return 1
+        _service_action(action)
+        print(ok(f"✓ serviço: {action}"))
+        return 0
+    return 2
+
+
+def cmd_test(args) -> int:
+    """Roda o servidor em PRIMEIRO PLANO (logs ao vivo, Ctrl+C para parar) —
+    para testar antes de instalar como serviço."""
+    port = env_port()
+    if service_installed() and _service_active():
+        print(warn("O serviço está rodando — pare com 'helena service stop' antes de testar."))
+        return 1
+    if running_pid() or health_ok(port):
+        print(warn(f"Já há um servidor ativo na porta {port} — pare com 'helena stop' antes."))
+        return 1
+    if not ENV.exists():
+        print(warn("Sem .env — rode 'helena setup' primeiro."))
+        return 1
+    print(bold(f"Modo teste na porta {port} — Ctrl+C para parar.\n"))
+    os.chdir(str(ROOT))
+    py = _server_python()
+    os.execv(py, [py, str(RUN_PY)])  # substitui o processo → logs ao vivo + Ctrl+C
+    return 0  # inalcançável
+
+
+def cmd_autoupdate(args) -> int:
+    on = args.action == "on"
+    if IS_WIN:
+        if on:
+            tr = f'cmd /c cd /d "{ROOT}" && "{ROOT / "helena.cmd"}" update git'
+            subprocess.run(["schtasks", "/Create", "/TN", _WIN_UPD_TASK, "/SC", "DAILY",
+                            "/ST", "04:00", "/F", "/TR", tr], capture_output=True)
+            print(ok("✓ auto-update diário (04:00) ativado."))
+        else:
+            subprocess.run(["schtasks", "/Delete", "/TN", _WIN_UPD_TASK, "/F"], capture_output=True)
+            print(ok("✓ auto-update desativado."))
+        return 0
+
+    if not on:
+        _systemctl("disable", "--now", f"{SERVICE_NAME}-update.timer")
+        _UPD_TIMER.unlink(missing_ok=True)
+        _UPD_SERVICE.unlink(missing_ok=True)
+        _systemctl("daemon-reload")
+        print(ok("✓ auto-update desativado."))
+        return 0
+
+    _UNIT_DIR.mkdir(parents=True, exist_ok=True)
+    _UPD_SERVICE.write_text(
+        "[Unit]\nDescription=Helena — auto-update (git)\n\n"
+        "[Service]\nType=oneshot\n"
+        f"WorkingDirectory={ROOT}\n"
+        f'Environment="PATH={os.environ.get("PATH", "")}"\n'
+        f"ExecStart={ROOT / 'helena'} update git\n"
+    )
+    _UPD_TIMER.write_text(
+        "[Unit]\nDescription=Helena — auto-update diário\n\n"
+        "[Timer]\nOnCalendar=daily\nPersistent=true\n\n"
+        "[Install]\nWantedBy=timers.target\n"
+    )
+    _systemctl("daemon-reload")
+    r = _systemctl("enable", "--now", f"{SERVICE_NAME}-update.timer")
+    if r.returncode != 0:
+        print(err("falha ao ativar o timer:")); print(dim(r.stderr)); return 1
+    print(ok("✓ auto-update diário ativado (git pull + uv sync + restart se mudou)."))
+    print(dim("Resultados vão para o journal: journalctl --user -u helena-update"))
+    return 0
+
+
+def cmd_audit(args) -> int:
+    """Mostra o que a Helena executou na máquina (trilha de auditoria)."""
+    dbp = _db_path()
+    if not dbp.exists():
+        print(warn("Banco não encontrado."))
+        return 1
+    con = sqlite3.connect(str(dbp))
+    try:
+        rows = con.execute(
+            "SELECT created_at, kind, exit_code, detail FROM audit_entries "
+            "ORDER BY id DESC LIMIT ?", (args.lines,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        print(dim("Sem auditoria ainda (reinicie o servidor para migrar)."))
+        return 0
+    if not rows:
+        print(dim("Nenhuma ação registrada ainda."))
+        return 0
+    print(bold(f"Últimas {len(rows)} ações executadas:"))
+    for ts, kind, code, detail in rows:
+        rc = "" if code is None else dim(f" rc={code}")
+        detail = (detail or "").replace("\n", " ⏎ ")
+        print(f"  {dim(ts[:19])}  {bold(kind):<8}{rc}  {detail[:90]}")
+    return 0
+
+
+def cmd_backup(args) -> int:
+    """Snapshot consistente do banco (SQLite backup API — seguro mesmo com WAL)."""
+    dbp = _db_path()
+    if not dbp.exists():
+        print(warn("Banco não encontrado."))
+        return 1
+    backup_dir = DATA_DIR / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    dest = backup_dir / f"helena-{time.strftime('%Y%m%d-%H%M%S')}.db"
+    src = sqlite3.connect(str(dbp))
+    dst = sqlite3.connect(str(dest))
+    try:
+        with dst:
+            src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+    print(ok(f"✓ backup: {dest}  ({dest.stat().st_size // 1024} KB)"))
+    # rotação: mantém só os N mais recentes
+    old = sorted(backup_dir.glob("helena-*.db"))[:-args.keep]
+    for f in old:
+        f.unlink(missing_ok=True)
+    if old:
+        print(dim(f"   ({len(old)} backup(s) antigo(s) removido(s); mantendo {args.keep})"))
+    return 0
+
+
+def cmd_panic(args) -> int:
+    """Kill switch: revoga TODAS as permissões e nega comandos pendentes."""
+    dbp = _db_path()
+    if not dbp.exists():
+        print(warn("Banco não encontrado."))
+        return 1
+    con = sqlite3.connect(str(dbp))
+    con.execute("PRAGMA busy_timeout=5000")
+    with con:
+        n_users = con.execute(
+            "UPDATE users SET is_principal=0, shell_full_control=0 "
+            "WHERE is_principal=1 OR shell_full_control=1"
+        ).rowcount
+        try:
+            n_cmds = con.execute(
+                "UPDATE shell_commands SET status='denied' WHERE status='pending'"
+            ).rowcount
+        except sqlite3.OperationalError:
+            n_cmds = 0
+    print(err("🛑 PÂNICO — permissões revogadas de todos os usuários."))
+    print(dim(f"   {n_users} usuário(s) rebaixado(s); {n_cmds} comando(s) pendente(s) negado(s)."))
+    print(dim("   A Helena não mexe mais na máquina. Para matar o servidor: 'helena stop'."))
+    print(dim("   Reative depois com: helena users principal|fullcontrol <username>"))
     return 0
 
 
@@ -502,13 +897,42 @@ def build_parser() -> argparse.ArgumentParser:
     lg.add_argument("-n", "--lines", type=int, default=60, help="quantas linhas mostrar")
     lg.set_defaults(func=cmd_logs)
 
-    sub.add_parser("update", help="buscar e aplicar atualizações (git)").set_defaults(func=cmd_update)
+    up = sub.add_parser("update", help="atualizar: 'git' (puxa do remoto) ou 'code' (aplica mudanças locais)")
+    up.add_argument("action", nargs="?", choices=["git", "code"], default="git")
+    up.set_defaults(func=cmd_update)
+
+    sub.add_parser("test", help="rodar em primeiro plano p/ testar antes de instalar (Ctrl+C para)").set_defaults(func=cmd_test)
+
+    sv = sub.add_parser("service", help="instalar/gerir como serviço do sistema (sobe no login)")
+    sv.add_argument("action", choices=["install", "uninstall", "status", "start", "stop", "restart"])
+    sv.set_defaults(func=cmd_service)
+
+    au = sub.add_parser("autoupdate", help="ligar/desligar auto-update diário (git)")
+    au.add_argument("action", choices=["on", "off"])
+    au.set_defaults(func=cmd_autoupdate)
+
+    ad = sub.add_parser("audit", help="ver o que a Helena executou (shell/desktop)")
+    ad.add_argument("-n", "--lines", type=int, default=40, help="quantas ações mostrar")
+    ad.set_defaults(func=cmd_audit)
+
+    bk = sub.add_parser("backup", help="snapshot do banco (data/backups/)")
+    bk.add_argument("--keep", type=int, default=10, help="quantos backups manter")
+    bk.set_defaults(func=cmd_backup)
+
+    sub.add_parser("panic", help="🛑 revogar TODAS as permissões (kill switch)").set_defaults(func=cmd_panic)
+
     sub.add_parser("doctor", help="checar pré-requisitos e estado").set_defaults(func=cmd_doctor)
 
-    us = sub.add_parser("users", help="listar usuários e definir permissão (normal|principal|fullcontrol)")
-    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal"], default="list")
-    us.add_argument("username", nargs="?")
+    us = sub.add_parser("users", help="listar usuários, definir permissão, ou atribuir email a conta antiga")
+    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "email"], default="list")
+    us.add_argument("identifier", nargs="?", help="email (ou username antigo)")
+    us.add_argument("value", nargs="?", help="novo email — só usado com a ação 'email'")
     us.set_defaults(func=cmd_users)
+
+    ch = sub.add_parser("chat", help="chat em texto no terminal (login por email+senha)")
+    ch.add_argument("--server", help="URL da Helena (default: http://127.0.0.1:<HELENA_PORT>)")
+    ch.add_argument("--logout", action="store_true", help="apaga a sessão local salva e sai")
+    ch.set_defaults(func=cmd_chat)
     return p
 
 

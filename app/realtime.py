@@ -45,3 +45,14 @@ def emit_job_progress(user_id: int, text: str) -> None:
     aberto). Não é persistido nem entra no contexto do agente: é só o usuário
     acompanhando o trabalho em andamento."""
     socketio.emit("job_progress", {"text": text}, room=str(user_id))
+
+
+def emit_peer_paired(user_id: int, peer: dict) -> None:
+    """Um peer novo acabou de ser pareado (alguém resgatou um código seu, ou
+    você resgatou o código de alguém — cada lado emite pro próprio dono)."""
+    socketio.emit("peer_paired", {"peer": peer}, room=str(user_id))
+
+
+def emit_peer_message(user_id: int, message: dict) -> None:
+    """Mensagem nova recebida de um peer federado."""
+    socketio.emit("peer_message", {"message": message}, room=str(user_id))

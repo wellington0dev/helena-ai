@@ -14,6 +14,8 @@ from google.genai import types
 
 from app.agent import shell_tool
 from app.agent.loop_tools import LOOP_TOOLS, _pesquisar
+from app.agenda import scan
+from app.agenda.timeutil import parse_due
 from app.extensions import db, write_lock
 from app.models import Routine, SavedCommand
 
@@ -105,6 +107,44 @@ def executar_lista(user_id: int, args: dict) -> dict:
     return shell_tool.create_pending(user_id, script, f"lista '{routine.name}'{note}")
 
 
+def agendar_lista(user_id: int, args: dict) -> dict:
+    routine = _find_routine(user_id, args.get("nome") or "")
+    if routine is None:
+        return {"ok": False, "error": "lista não encontrada"}
+    if shell_tool.shell_level(user_id) is None:
+        return {"ok": False, "error": "só usuário principal pode agendar (a lista rodaria sozinha)."}
+    if routine.created_by != "user":
+        return {
+            "ok": False,
+            "error": "só dá pra agendar listas que o USUÁRIO criou na página. Peça pra ele salvar como dele primeiro.",
+        }
+    try:
+        nxt = parse_due(args["quando"])
+    except (KeyError, ValueError):
+        return {"ok": False, "error": "'quando' inválido (use ISO 8601 no horário local)"}
+    rec = (args.get("recorrencia") or "").strip().lower() or None
+    if rec == "none":
+        rec = None
+    if rec and rec not in scan.RECURRENCES:
+        return {"ok": False, "error": f"recorrencia deve ser um de {sorted(scan.RECURRENCES)}"}
+    with write_lock:
+        routine.next_run = nxt
+        routine.recurrence = rec
+        routine.enabled = True
+        db.session.commit()
+    return {"ok": True, "agendada": routine.name, "next_run": nxt.isoformat(), "recorrencia": rec}
+
+
+def desagendar_lista(user_id: int, args: dict) -> dict:
+    routine = _find_routine(user_id, args.get("nome") or "")
+    if routine is None:
+        return {"ok": False, "error": "lista não encontrada"}
+    with write_lock:
+        routine.enabled = False
+        db.session.commit()
+    return {"ok": True, "desagendada": routine.name}
+
+
 # --------------------------------------------------------------------------- #
 # CRUD (via IA → created_by='ai')
 # --------------------------------------------------------------------------- #
@@ -185,7 +225,7 @@ _NAME = types.Schema(type=types.Type.OBJECT,
                      properties={"nome": types.Schema(type=types.Type.STRING)},
                      required=["nome"])
 
-AUTOMATION_DECLS = [
+AUTOMATION_EXEC_DECLS = [  # exige principal (executam na máquina)
     types.FunctionDeclaration(
         name="executar_comando",
         description="Executa um COMANDO salvo pelo nome (veja a lista de comandos no contexto).",
@@ -196,6 +236,34 @@ AUTOMATION_DECLS = [
         description="Executa uma LISTA/rotina salva pelo nome — roda os passos em ordem. Use quando o usuário pedir para rodar uma rotina/lista dele.",
         parameters=_NAME,
     ),
+    types.FunctionDeclaration(
+        name="agendar_lista",
+        description=(
+            "Agenda uma lista para rodar SOZINHA num horário (e opcionalmente repetir). "
+            "Ex.: 'roda meu modo trabalho toda manhã às 8h'. Só funciona com listas que o "
+            "usuário criou na página dele."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "nome": types.Schema(type=types.Type.STRING),
+                "quando": types.Schema(type=types.Type.STRING, description="1ª execução, ISO 8601 no horário local."),
+                "recorrencia": types.Schema(
+                    type=types.Type.STRING, enum=["daily", "weekly", "monthly", "yearly", "none"],
+                    description="Repetição (omita/none = uma vez só).",
+                ),
+            },
+            required=["nome", "quando"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="desagendar_lista",
+        description="Cancela o agendamento de uma lista (ela para de rodar sozinha).",
+        parameters=_NAME,
+    ),
+]
+
+AUTOMATION_MANAGE_DECLS = [  # disponíveis a todos (criar/apagar é inofensivo; busca web)
     types.FunctionDeclaration(
         name="salvar_comando",
         description="Cria/atualiza um comando salvo (atalho de shell) a pedido do usuário.",
@@ -245,6 +313,8 @@ AUTOMATION_DECLS = [
 AUTOMATION_HANDLERS = {
     "executar_comando": executar_comando,
     "executar_lista": executar_lista,
+    "agendar_lista": agendar_lista,
+    "desagendar_lista": desagendar_lista,
     "salvar_comando": salvar_comando,
     "salvar_lista": salvar_lista,
     "apagar_comando": apagar_comando,

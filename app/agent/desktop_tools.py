@@ -16,7 +16,7 @@ from app.agent import desktop
 from app.extensions import db, write_lock
 from app.models import Message, User
 
-DESKTOP_DECLS = [
+DESKTOP_VIEW_DECLS = [  # exige principal (ver a tela)
     types.FunctionDeclaration(
         name="capturar_tela",
         description=(
@@ -35,9 +35,16 @@ DESKTOP_DECLS = [
         ),
         parameters=types.Schema(type=types.Type.OBJECT, properties={}),
     ),
+]
+
+DESKTOP_INPUT_DECLS = [  # exige controle absoluto (agir sem aprovação)
     types.FunctionDeclaration(
         name="mover_mouse",
-        description="Move o cursor do mouse para a coordenada (x, y) em pixels da tela.",
+        description=(
+            "Move o cursor do mouse para a coordenada (x, y) em pixels — sempre "
+            "relativa ao ÚLTIMO print que você viu (capturar_tela), não à resolução "
+            "real da tela."
+        ),
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -49,7 +56,10 @@ DESKTOP_DECLS = [
     ),
     types.FunctionDeclaration(
         name="clicar",
-        description="Clica o mouse. Opcionalmente move para (x, y) antes. Use `duplo` para duplo-clique.",
+        description=(
+            "Clica o mouse. Opcionalmente move para (x, y) antes — coordenada "
+            "relativa ao ÚLTIMO print que você viu. Use `duplo` para duplo-clique."
+        ),
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -181,18 +191,22 @@ def _act(user_id: int, label: str, fn) -> dict:
         fn()
     except (desktop.DesktopError, KeyError, ValueError, TypeError) as exc:
         return {"ok": False, "error": str(exc)}
-    current_app.logger.info("DESKTOP %s (user=%s)", label, user_id)  # trilha de auditoria
+    current_app.logger.info("DESKTOP %s (user=%s)", label, user_id)
+    from app import audit
+    audit.record(user_id, "desktop", label)  # trilha de auditoria
     return {"ok": True}
 
 
 def _mover_mouse(user_id: int, args: dict) -> dict:
-    x, y = int(args["x"]), int(args["y"])
+    x, y = desktop.report_to_real(int(args["x"]), int(args["y"]))
     return _act(user_id, f"mousemove {x},{y}", lambda: desktop.move_mouse(x, y))
 
 
 def _clicar(user_id: int, args: dict) -> dict:
     x = args.get("x")
     y = args.get("y")
+    if x is not None and y is not None:
+        x, y = desktop.report_to_real(int(x), int(y))
     botao = args.get("botao", "left")
     duplo = bool(args.get("duplo"))
     return _act(

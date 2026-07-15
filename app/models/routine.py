@@ -31,6 +31,10 @@ class Routine(db.Model):
     description = db.Column(db.Text, nullable=True)
     steps = db.Column(db.JSON, default=list, nullable=False)  # [{"kind","value"}, ...]
     created_by = db.Column(db.Text, nullable=False, default="user")  # user | ai
+    # agendamento (executa sozinha): habilitada + quando + recorrência
+    enabled = db.Column(db.Boolean, default=False, nullable=False)
+    next_run = db.Column(UtcDateTime, nullable=True)
+    recurrence = db.Column(db.Text, nullable=True)  # None | daily | weekly | monthly | yearly
     created_at = db.Column(UtcDateTime, default=_utcnow, nullable=False)
     updated_at = db.Column(UtcDateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -41,6 +45,9 @@ class Routine(db.Model):
             "description": self.description,
             "steps": self.steps or [],
             "created_by": self.created_by,
+            "enabled": self.enabled,
+            "next_run": self.next_run.isoformat() if self.next_run else None,
+            "recurrence": self.recurrence,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

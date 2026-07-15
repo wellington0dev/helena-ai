@@ -12,6 +12,8 @@ depois, como decisão de segurança à parte.
 from flask import current_app
 from google.genai import types
 
+from app.agent.sandbox import EXECUTAR_CODIGO_DECL, executar_codigo
+
 LOOP_TOOLS = types.Tool(
     function_declarations=[
         types.FunctionDeclaration(
@@ -33,6 +35,7 @@ LOOP_TOOLS = types.Tool(
                 required=["assunto"],
             ),
         ),
+        EXECUTAR_CODIGO_DECL,
     ]
 )
 
@@ -58,7 +61,7 @@ def _pesquisar(user_id: int, args: dict) -> dict:
     return {"ok": True, "assunto": assunto, "achados": achados[:4000]}
 
 
-_LOOP_HANDLERS = {"pesquisar": _pesquisar}
+_LOOP_HANDLERS = {"pesquisar": _pesquisar, "executar_codigo": executar_codigo}
 
 
 def dispatch_loop_tool(name: str, args: dict, user_id: int) -> dict:

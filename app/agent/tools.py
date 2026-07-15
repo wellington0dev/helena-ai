@@ -7,18 +7,23 @@ Reminders, jobs e mídia entram nas fases seguintes.
 from google.genai import types
 from sqlalchemy import select
 
-from app.agent.automations_tools import AUTOMATION_DECLS, AUTOMATION_HANDLERS
-from app.agent.desktop_tools import DESKTOP_DECLS, DESKTOP_HANDLERS
-from app.agent.shell_tool import EXECUTAR_SHELL_DECL, executar_shell
+from app.agent.automations_tools import (
+    AUTOMATION_EXEC_DECLS, AUTOMATION_MANAGE_DECLS, AUTOMATION_HANDLERS,
+)
+from app.agent.desktop_tools import (
+    DESKTOP_INPUT_DECLS, DESKTOP_VIEW_DECLS, DESKTOP_HANDLERS,
+)
+from app.agent.federation_tools import FEDERATION_INITIATE_DECLS, FEDERATION_INITIATE_HANDLERS
+from app.agent.sandbox import EXECUTAR_CODIGO_DECL, executar_codigo
+from app.agent.shell_tool import EXECUTAR_SHELL_DECL, executar_shell, shell_level
 from app.extensions import db, write_lock
-from app.models import AiNote, UserProfile
+from app.models import AiNote, Peer, UserProfile
 
 # --------------------------------------------------------------------------- #
 # Schemas declarados ao Gemini
 # --------------------------------------------------------------------------- #
 
-TOOL_DECLARATIONS = types.Tool(
-    function_declarations=[
+_CHAT_BASE_DECLS = [
         types.FunctionDeclaration(
             name="create_note",
             description=(
@@ -241,11 +246,61 @@ TOOL_DECLARATIONS = types.Tool(
                 required=["type", "payload"],
             ),
         ),
-        EXECUTAR_SHELL_DECL,
-        *DESKTOP_DECLS,
-        *AUTOMATION_DECLS,
     ]
+
+INICIAR_TAREFA_COMPUTADOR_DECL = types.FunctionDeclaration(
+    name="iniciar_tarefa_computador",
+    description=(
+        "Dispara em SEGUNDO PLANO uma tarefa que precisa NAVEGAR/CLICAR/DIGITAR "
+        "no computador do usuário (ex.: enviar currículo num site, buscar/comparar "
+        "produtos em lojas diferentes, responder um e-mail) — não trava o chat, "
+        "você avisa quando terminar. LAPIDE antes: confirme com o usuário o "
+        "objetivo exato e os dados necessários (o que preencher, pra quem, "
+        "critérios de busca) — só dispare quando tiver certeza do que fazer. Não "
+        "use para coisas rápidas que dá pra fazer aqui mesmo no chat, nem para "
+        "pesquisa textual (isso é `run_background_job` type=research)."
+    ),
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "title": types.Schema(type=types.Type.STRING, description="Rótulo curto da tarefa."),
+            "task": types.Schema(
+                type=types.Type.STRING,
+                description="O objetivo detalhado e já refinado (o que fazer, passo a passo se souber).",
+            ),
+        },
+        required=["title", "task"],
+    ),
 )
+
+# Tiers de tools por nível de permissão (menos tokens + o modelo não recebe o
+# que não pode usar): BASE (todos) + PRINCIPAL (ver tela/shell/executar) + FULL (mouse/teclado).
+_BASE_DECLS = _CHAT_BASE_DECLS + AUTOMATION_MANAGE_DECLS + [EXECUTAR_CODIGO_DECL]
+_PRINCIPAL_DECLS = [EXECUTAR_SHELL_DECL, *DESKTOP_VIEW_DECLS, *AUTOMATION_EXEC_DECLS]
+_FULL_DECLS = [*DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL]
+
+# conjunto completo (default / retrocompat p/ quem não passa user)
+TOOL_DECLARATIONS = types.Tool(
+    function_declarations=_BASE_DECLS + _PRINCIPAL_DECLS + _FULL_DECLS + FEDERATION_INITIATE_DECLS
+)
+
+
+def build_tool_declarations(user_id: int) -> types.Tool:
+    """Declarações de tools do CHAT filtradas pelo nível do usuário."""
+    decls = list(_BASE_DECLS)
+    level = shell_level(user_id)
+    if level in ("principal", "full"):
+        decls += _PRINCIPAL_DECLS
+    if level == "full":
+        decls += _FULL_DECLS
+    # Fase 3: só expõe as tools de federação se o usuário tiver ao menos um
+    # peer pareado — evita poluir o prompt/tentar o modelo a chamar com
+    # peer_id inventado quando não há nada com quem falar. O gate de
+    # confiança/consentimento de verdade (ai_can_initiate + trust_level)
+    # acontece em runtime no handler, não aqui.
+    if db.session.query(Peer).filter_by(user_id=user_id).first() is not None:
+        decls += FEDERATION_INITIATE_DECLS
+    return types.Tool(function_declarations=decls)
 
 
 # --------------------------------------------------------------------------- #
@@ -314,15 +369,30 @@ def _generation_handlers() -> dict:
         "update_reminder": at.update_reminder,
         "delete_reminder": at.delete_reminder,
         "run_background_job": job_tools.run_background_job,
+        "iniciar_tarefa_computador": _iniciar_tarefa_computador,
     }
+
+
+def _iniciar_tarefa_computador(user_id: int, args: dict) -> dict:
+    from app.agent import job_tools
+
+    return job_tools.run_background_job(
+        user_id,
+        {
+            "type": "desktop_task",
+            "payload": {"title": args.get("title"), "task": args.get("task")},
+        },
+    )
 
 
 _HANDLERS = {
     "create_note": _create_note,
     "update_user_profile": _update_user_profile,
     "executar_shell": executar_shell,
+    "executar_codigo": executar_codigo,
     **DESKTOP_HANDLERS,
     **AUTOMATION_HANDLERS,
+    **FEDERATION_INITIATE_HANDLERS,
 }
 
 

@@ -48,19 +48,46 @@ class Config:
     # Gemini (cérebro do agente)
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    # temperatura do agente: baixa = mais consistência de tool-calling (§tier1)
+    GEMINI_TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "0.5"))
     # modelos de mídia (Fase 3)
     GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
     GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     GEMINI_TTS_VOICE = os.environ.get("GEMINI_TTS_VOICE", "Kore")
     # limite de iterações do loop de tool-calling (evita loop infinito, §15)
     MAX_TOOL_ITERATIONS = 6
+    # memória de longo prazo: acima do teto, consolida notas antigas no perfil
+    MEMORY_NOTES_THRESHOLD = int(os.environ.get("MEMORY_NOTES_THRESHOLD", "30"))
+    MEMORY_NOTES_KEEP = int(os.environ.get("MEMORY_NOTES_KEEP", "15"))
     # loop de agente autônomo (background jobs iterativos): orçamento maior + timeout
     MAX_JOB_ITERATIONS = int(os.environ.get("MAX_JOB_ITERATIONS", "16"))
     JOB_TIMEOUT_SECONDS = int(os.environ.get("JOB_TIMEOUT_SECONDS", "240"))
+    # tarefas de desktop (navegar/clicar/digitar): fluxo ver→agir→conferir gasta
+    # muito mais passos que pesquisa textual, por isso orçamento bem maior
+    MAX_DESKTOP_JOB_ITERATIONS = int(os.environ.get("MAX_DESKTOP_JOB_ITERATIONS", "60"))
+    DESKTOP_JOB_TIMEOUT_SECONDS = int(os.environ.get("DESKTOP_JOB_TIMEOUT_SECONDS", "900"))
+    # execução de código em sandbox (bubblewrap): sem rede, sem FS do host
+    SANDBOX_TIMEOUT_SECONDS = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "10"))
+    SANDBOX_MAX_OUTPUT = int(os.environ.get("SANDBOX_MAX_OUTPUT", "10000"))
     # tool executar_shell (controle do computador, com aprovação do usuário)
     SHELL_TIMEOUT_SECONDS = int(os.environ.get("SHELL_TIMEOUT_SECONDS", "60"))
     SHELL_MAX_OUTPUT = int(os.environ.get("SHELL_MAX_OUTPUT", "16000"))
     MAX_SHELL_PER_TURN = int(os.environ.get("MAX_SHELL_PER_TURN", "5"))
+
+    # Federação Helena-a-Helena (Fase 1: pareamento + transporte assinado)
+    # URL pública desta instância — o QUE o peer chama de volta. Vazio = não
+    # consegue parear como iniciador (ainda pode receber, se já pareado antes).
+    FEDERATION_PUBLIC_URL = os.environ.get("FEDERATION_PUBLIC_URL", "").rstrip("/")
+    FEDERATION_REPLAY_WINDOW_SECONDS = int(os.environ.get("FEDERATION_REPLAY_WINDOW_SECONDS", "300"))
+    FEDERATION_PAIRING_TTL_SECONDS = int(os.environ.get("FEDERATION_PAIRING_TTL_SECONDS", "600"))
+    FEDERATION_HTTP_TIMEOUT_SECONDS = int(os.environ.get("FEDERATION_HTTP_TIMEOUT_SECONDS", "10"))
+    FEDERATION_MAX_AI_TURNS = int(os.environ.get("FEDERATION_MAX_AI_TURNS", "3"))
+    FEDERATION_REPLY_HISTORY_LIMIT = int(os.environ.get("FEDERATION_REPLY_HISTORY_LIMIT", "20"))
+    # Fase 3: throttle da INICIATIVA da IA (contatar um peer por conta
+    # própria) — contador SEPARADO do teto de resposta acima.
+    FEDERATION_AI_INITIATE_COOLDOWN_SECONDS = int(
+        os.environ.get("FEDERATION_AI_INITIATE_COOLDOWN_SECONDS", "3600")
+    )
 
     # Upload: tamanho máximo de arquivo (25 MB)
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024

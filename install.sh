@@ -61,11 +61,20 @@ if [ "$(uname)" = "Linux" ] && [ -n "$WAYLAND_DISPLAY" ]; then
   ) || echo "   (setup de desktop pulou/falhou — o resto do servidor está ok)"
 fi
 
+# 6. serviço do sistema: se já estiver configurado (.env com chave), instala e sobe;
+#    senão, deixa o passo pro usuário depois do setup.
+if grep -q '^GEMINI_API_KEY=.\+' .env 2>/dev/null; then
+  echo "==> Configurando como serviço do sistema (sobe no login)..."
+  ./helena service install || echo "   (falhou — rode './helena service install' depois)"
+fi
+
 echo
-echo "✅ Pronto! Próximos passos:"
-echo "   ./helena setup     # configura a chave do Gemini, porta, etc."
-echo "   ./helena start     # inicia o servidor"
-echo "   ./helena status    # confere se está no ar"
+echo "✅ Pronto! Fluxo recomendado:"
+echo "   ./helena setup            # configura a chave do Gemini, porta, etc."
+echo "   ./helena test             # roda em 1º plano p/ testar (Ctrl+C para sair)"
+echo "   ./helena service install  # instala como serviço (sobe no login)"
+echo "   ./helena autoupdate on    # (opcional) atualização diária pelo git"
 echo
+echo "Comandos úteis: helena status | logs -f | update git | update code"
 echo "Dica: para usar de qualquer lugar, linke no PATH:"
 echo "   sudo ln -s \"\$(pwd)/helena\" /usr/local/bin/helena"

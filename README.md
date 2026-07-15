@@ -57,6 +57,7 @@ Sem interação:
 ## Uso
 
 ```bash
+./helena test       # roda em 1º plano p/ testar antes de instalar (Ctrl+C sai)
 ./helena start      # inicia em background
 ./helena status     # está rodando? saúde? url?
 ./helena logs -f    # acompanha o log
@@ -69,15 +70,34 @@ Depois de `start`, a API fica em `http://localhost:<porta>` (e na rede local
 pelo IP da máquina, já que o bind é `0.0.0.0` por padrão). Configure esse
 endereço no app Android.
 
+## Rodar junto do sistema (serviço)
+
+Instala como serviço que sobe sozinho ao logar:
+
+```bash
+./helena service install     # instala e inicia
+./helena service status      # estado
+./helena service uninstall   # remove
+```
+
+- **Linux**: serviço **systemd de usuário** (não root) — de propósito, porque só
+  assim ele enxerga a sessão gráfica (controle de tela/mouse não funciona num
+  serviço de sistema). ⚠️ Valide o controle de desktop após um **logout/login** real.
+- **Windows**: **tarefa no logon** (não Windows Service, que roda na Session 0
+  isolada do desktop). *Escrito, mas não testado em Windows.*
+
+Com o serviço instalado, `helena start/stop/status` passam a operar sobre ele.
+
 ## Atualizar
 
 ```bash
-./helena update     # busca no git, aplica (git pull) e roda uv sync
-./helena restart    # aplica a nova versão
+./helena update git      # puxa do remoto (git pull) + uv sync + reinicia se mudou
+./helena update code     # aplica mudanças que VOCÊ fez no código local (uv sync + reinicia)
+./helena autoupdate on   # (opcional) auto-update diário pelo git; 'off' desliga
 ```
 
-`update` só age num clone git com árvore limpa e branch remoto configurado —
-caso contrário avisa e não faz nada.
+`update git` só age num clone git com árvore limpa e branch remoto configurado.
+`update code` serve para árvore com alterações locais (não mexe no git).
 
 ## Usar de qualquer diretório (opcional)
 

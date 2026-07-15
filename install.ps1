@@ -27,6 +27,7 @@ if (-not (Test-Path ".env")) {
 
 Write-Host ""
 Write-Host "OK! Proximos passos:"
-Write-Host "   .\helena setup     # configura a chave do Gemini, porta, etc."
-Write-Host "   .\helena start     # inicia o servidor"
-Write-Host "   .\helena status    # confere se esta no ar"
+Write-Host "   .\helena setup            # configura a chave do Gemini, porta, etc."
+Write-Host "   .\helena test             # roda em 1o plano p/ testar (Ctrl+C sai)"
+Write-Host "   .\helena service install  # instala como tarefa de logon (sobe ao entrar)"
+Write-Host "   .\helena autoupdate on    # (opcional) atualizacao diaria pelo git"

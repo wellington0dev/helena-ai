@@ -2,11 +2,12 @@
 import time
 from collections.abc import Callable
 
+from flask import current_app
 from google import genai
 from google.genai import types
 
 from app.agent import context as ctx
-from app.agent.tools import TOOL_DECLARATIONS, execute_tool
+from app.agent.tools import TOOL_DECLARATIONS, build_tool_declarations, execute_tool
 
 _client: genai.Client | None = None
 
@@ -37,6 +38,30 @@ def _is_screenshot_turn(content) -> bool:
         return False
 
 
+def _wrapup_text(client, model, contents, base_config) -> str:
+    """Pede um fecho em TEXTO (sem tools) quando o loop termina de forma
+    ANORMAL (empacado, timeout ou orçamento de iterações esgotado) — sem isso,
+    uma tarefa longa que não termina "naturalmente" perde todo o progresso já
+    feito (o job vira erro em vez de contar o que deu certo/o que travou).
+    Best-effort: nunca levanta, um resumo vazio só faz cair no fallback genérico."""
+    ask = types.Content(role="user", parts=[types.Part.from_text(text=(
+        "Pare — não chame mais nenhuma ferramenta. Resuma em texto corrido, em "
+        "português, exatamente o que você já conseguiu fazer até aqui e o que "
+        "ficou faltando ou travou (diga o que travou, se algo travou)."
+    ))])
+    wrapup_config = types.GenerateContentConfig(
+        system_instruction=base_config.system_instruction,
+        temperature=base_config.temperature,
+    )
+    try:
+        resp = client.models.generate_content(
+            model=model, contents=[*contents, ask], config=wrapup_config,
+        )
+        return (resp.text or "").strip()
+    except Exception:  # noqa: BLE001 — fecho é best-effort, não pode derrubar o loop
+        return ""
+
+
 def run_agent(
     user_id: int,
     api_key: str,
@@ -49,6 +74,7 @@ def run_agent(
     dispatch: Callable[[str, dict, int], dict] | None = None,
     on_progress: Callable[[str], None] | None = None,
     deadline: float | None = None,
+    stuck_repeat_limit: int = 1,
 ) -> tuple[str, bool]:
     """Roda o loop de tool-calling e devolve `(texto_final, alguma_tool_executou)`.
 
@@ -58,7 +84,11 @@ def run_agent(
     - `tool_declarations`/`dispatch`: conjunto de tools alternativo;
     - `on_progress(texto)`: recebe o texto que o modelo escreve JUNTO das tool
       calls em cada passo — é o "feedback contínuo" (ex.: "já entendi X, seguindo");
-    - `deadline`: instante (time.monotonic) para parar por timeout.
+    - `deadline`: instante (time.monotonic) para parar por timeout;
+    - `stuck_repeat_limit`: quantas chamadas IDÊNTICAS consecutivas tolerar antes
+      de considerar "empacado" e encerrar. 1 (padrão) = encerra na 1ª repetição
+      (bom pra pesquisa: repetir a mesma busca é sinal de loop). Tarefas de
+      desktop legitimamente repetem (rolar 2x, tab entre campos) — usar mais.
 
     Termina naturalmente quando o modelo para de chamar tools (o texto final vira
     a entrega) — de propósito não há tool `finalizar` que o modelo poderia narrar
@@ -69,10 +99,16 @@ def run_agent(
         system_instruction = ctx.build_system_instruction(user_id)
     contents = initial_contents if initial_contents is not None else ctx.build_history(user_id)
     dispatch = dispatch or execute_tool
+    # chat (sem override): tools filtradas pelo nível de permissão do usuário
+    if tool_declarations is None:
+        tool_declarations = build_tool_declarations(user_id)
 
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
-        tools=[tool_declarations or TOOL_DECLARATIONS],
+        tools=[tool_declarations],
+        # temperatura mais baixa = mais consistência em chamar as tools (menos
+        # "narrar em vez de agir"). A personalidade vem do prompt, não do calor.
+        temperature=current_app.config["GEMINI_TEMPERATURE"],
         # desliga a execução automática — despachamos nós mesmos (escopo + DB)
         automatic_function_calling=types.AutomaticFunctionCallingConfig(
             disable=True
@@ -82,9 +118,15 @@ def run_agent(
     final_text = ""
     tool_executed = False
     last_sig = None
+    repeat_count = 0
     empty_retries = 0
+    # True quando o loop termina de forma ANORMAL (não foi o modelo que decidiu
+    # parar) — nesses casos tentamos um fecho em texto antes de desistir, pra
+    # não perder o progresso de uma tarefa longa (ver _wrapup_text).
+    needs_wrapup = False
     for _ in range(max_iters):
         if deadline is not None and time.monotonic() > deadline:
+            needs_wrapup = True
             break
 
         response = client.models.generate_content(
@@ -110,6 +152,7 @@ def run_agent(
             empty_retries += 1
             if empty_retries <= _MAX_EMPTY_RETRIES:
                 continue
+            needs_wrapup = True
             break
         empty_retries = 0  # passo produtivo → zera a contagem de vazios
 
@@ -121,10 +164,16 @@ def run_agent(
         if step_text and on_progress is not None:
             on_progress(step_text)
 
-        # detector de "empacamento": mesma(s) chamada(s) repetida(s) → encerra
+        # detector de "empacamento": mesma(s) chamada(s) repetida(s) em sequência
+        # além do limite tolerado → encerra (evita loop infinito de tool idêntica)
         sig = tuple((c.name, str(dict(c.args or {}))) for c in calls)
         if sig == last_sig:
-            break
+            repeat_count += 1
+            if repeat_count >= stuck_repeat_limit:
+                needs_wrapup = True
+                break
+        else:
+            repeat_count = 0
         last_sig = sig
 
         tool_executed = True
@@ -170,10 +219,12 @@ def run_agent(
         # turno aqui; a mensagem de pedido já foi persistida e o agente só
         # continua depois que o usuário decidir (via endpoint de decisão).
         if pending:
-            break
+            break  # UI própria de aprovação — não é caso de fecho, fica sem texto
     else:
-        # esgotou iterações sem resposta final — força um fechamento simples
-        final_text = final_text or (
+        needs_wrapup = True  # esgotou max_iters sem resposta natural do modelo
+
+    if needs_wrapup and not final_text:
+        final_text = (_wrapup_text(client, model, contents, config) if tool_executed else "") or (
             "Fiz o que pude aqui, mas me embananei um pouco. "
             "Pode repetir do seu jeito?"
         )
