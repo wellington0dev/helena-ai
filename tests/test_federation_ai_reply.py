@@ -183,7 +183,7 @@ def test_complete_federation_reply_creates_ai_message_not_chat_message(app, make
     job_id = _make_job(app, uid, pid)
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
     monkeypatch.setattr("app.jobs.worker.send_message", lambda peer, body, **_kw: None)
 
     job_done_calls = []
@@ -224,7 +224,7 @@ def test_complete_federation_reply_increments_streak_even_if_delivery_fails(app,
     job_id = _make_job(app, uid, pid)
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
 
     def _boom(peer, body, **_kw):
         raise FederationError("timeout")
@@ -264,7 +264,7 @@ def test_complete_federation_reply_rechecks_conditions_at_execution_time(app, ma
         db.session.commit()
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
     monkeypatch.setattr("app.jobs.worker.send_message", lambda peer, body, **_kw: None)
     monkeypatch.setattr("app.jobs.worker.emit_peer_message", lambda uid, msg: None)
 
@@ -289,7 +289,7 @@ def test_complete_federation_reply_rechecks_owner_paused_at_execution_time(app, 
     client.post("/account/panic", headers=auth(uid))  # muda depois do enqueue
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
     monkeypatch.setattr("app.jobs.worker.send_message", lambda peer, body, **_kw: None)
     monkeypatch.setattr("app.jobs.worker.emit_peer_message", lambda uid, msg: None)
 

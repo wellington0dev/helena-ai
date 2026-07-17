@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import secrets
+import shutil
 import signal
 import sqlite3
 import subprocess
@@ -19,6 +19,11 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+
+import env_file
+import local_models
+import ollama_ctl
+from cli_select import confirm, select_menu
 
 ROOT = Path(__file__).resolve().parent
 ENV = ROOT / ".env"
@@ -59,45 +64,26 @@ def bold(t): return _c(t, "1")
 
 
 # ---------- gerência do .env ----------
+# implementação real em env_file.py (compartilhada com o blueprint web) —
+# aqui só amarra ao caminho ENV/ENV_EXAMPLE deste processo
 def read_env_values() -> dict[str, str]:
     """Lê os pares KEY=VALUE ativos (não comentados) do .env."""
-    vals: dict[str, str] = {}
-    if ENV.exists():
-        for line in ENV.read_text().splitlines():
-            m = re.match(r"^\s*([A-Z_][A-Z0-9_]*)\s*=(.*)$", line)
-            if m:
-                vals[m.group(1)] = m.group(2).strip()
-    return vals
+    return env_file.read_env_values(ENV)
 
 
 def set_env_values(updates: dict[str, str]) -> None:
-    """Atualiza (ou insere) chaves no .env preservando comentários e ordem.
-    Substitui inclusive linhas comentadas do tipo `# KEY=` (placeholders)."""
-    if not ENV.exists() and ENV_EXAMPLE.exists():
-        ENV.write_text(ENV_EXAMPLE.read_text())
-    lines = ENV.read_text().splitlines() if ENV.exists() else []
-    seen: set[str] = set()
-    out: list[str] = []
-    for line in lines:
-        m = re.match(r"^\s*#?\s*([A-Z_][A-Z0-9_]*)\s*=", line)
-        if m and m.group(1) in updates:
-            key = m.group(1)
-            out.append(f"{key}={updates[key]}")
-            seen.add(key)
-        else:
-            out.append(line)
-    for key, val in updates.items():
-        if key not in seen:
-            out.append(f"{key}={val}")
-    ENV.write_text("\n".join(out) + "\n")
+    """Atualiza (ou insere) chaves no .env preservando comentários e ordem."""
+    env_file.set_env_values(ENV, updates, example_path=ENV_EXAMPLE)
 
 
 def mask(value: str) -> str:
     if not value:
         return dim("(vazio)")
-    if len(value) <= 8:
-        return "•" * len(value)
-    return f"{value[:4]}{'•' * 6}{value[-4:]}"
+    return env_file.mask_plain(value)
+
+
+def _interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def env_port() -> int:
@@ -166,13 +152,99 @@ def health_ok(port: int, timeout: float = 1.5) -> bool:
 
 
 # ---------- comandos ----------
+def _setup_local_llm(updates: dict) -> bool:
+    """Fluxo de configuração do modelo local (Ollama): instala se faltar,
+    detecta hardware, mostra o catálogo colorido, baixa o modelo escolhido.
+    Preenche `updates` e devolve True em caso de sucesso (False = caiu pro
+    Gemini, seja por cancelamento ou por falha de instalação)."""
+    if not _ensure_ollama_installed():
+        print(warn("Sem o Ollama instalado, não dá pra usar modelo local agora."))
+        return False
+
+    host = OLLAMA_DEFAULT_HOST
+    if not _ensure_ollama_daemon(host):
+        print(warn("Não consegui confirmar que o Ollama está respondendo — seguindo mesmo assim."))
+
+    hw = local_models.detect_hardware()
+    gpu = f"{hw['gpu_vram_gb']}GB VRAM" if hw.get("gpu_vram_gb") else "sem GPU detectada (CPU)"
+    print(dim(f"\nHardware detectado: {hw['ram_gb']}GB RAM, {hw['cpu_count']} CPUs, {gpu}"))
+
+    installed = _ollama_list_installed()
+    options = _catalog_options(hw, installed=installed)
+    options.append(("__custom__", "(digitar outro nome de modelo)"))
+    chosen = select_menu("\nQual modelo usar?", options)
+    if chosen is None:
+        print(warn("cancelado."))
+        return False
+    if chosen == "__custom__":
+        try:
+            chosen = input("Nome do modelo (tag do 'ollama pull', ex.: qwen2.5:7b): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return False
+        if not chosen:
+            print(warn("cancelado."))
+            return False
+
+    if chosen not in installed and not _ollama_pull(chosen):
+        print(err(f"não consegui baixar {chosen} — tente depois com 'helena models pull'."))
+        return False
+
+    print(dim("testando se o modelo roda de verdade (não só se baixou)..."))
+    smoke_ok, smoke_detail = _ollama_smoke_test(host, chosen)
+    if not smoke_ok:
+        print(err(f"✗ o modelo baixou mas não RODA: {smoke_detail}"))
+        print(warn(
+            "Isso costuma ser uma instalação incompleta/quebrada do Ollama "
+            "(ex.: binário de execução ausente ou sem permissão), não um "
+            "problema da Helena. Tente reinstalar o Ollama:"
+        ))
+        print(dim("  curl -fsSL https://ollama.com/install.sh | sh"))
+        print(warn("Configuração local NÃO foi salva — mantendo Gemini."))
+        return False
+    print(ok("✓ modelo respondeu normalmente."))
+
+    updates["LLM_PROVIDER"] = "ollama"
+    updates["OLLAMA_MODEL"] = chosen
+    updates["OLLAMA_HOST"] = host
+    updates["OLLAMA_MANAGED"] = "1"
+    print(ok(f"\n✓ modelo local configurado: {chosen}"))
+    print(warn(
+        "⚠ geração de imagem, TTS e descrição de fotos/áudio enviados exigem "
+        "Gemini — ficam indisponíveis a menos que você TAMBÉM configure "
+        "GEMINI_API_KEY (helena config set GEMINI_API_KEY sua-chave)."
+    ))
+    return True
+
+
 def cmd_setup(args) -> int:
     print(bold("Configuração da Helena"))
     print(dim("Enter mantém o valor atual/default entre colchetes.\n"))
     current = read_env_values()
     updates: dict[str, str] = {}
 
+    provider = current.get("LLM_PROVIDER", "gemini")
+    if _interactive():
+        picked = select_menu(
+            "Qual cérebro a Helena vai usar?",
+            [
+                ("gemini", "Gemini (nuvem, precisa de chave de API)"),
+                ("local", "Modelo local (Ollama, roda na sua máquina)"),
+            ],
+            default=1 if provider == "ollama" else 0,
+        )
+        if picked is not None:
+            provider = picked
+
+    using_ollama = provider in ("local", "ollama") and _setup_local_llm(updates)
+    if using_ollama:
+        updates["LLM_PROVIDER"] = "ollama"
+    else:
+        updates["LLM_PROVIDER"] = "gemini"
+
     for key, default, desc, secret in CORE_FIELDS:
+        if key == "GEMINI_API_KEY" and using_ollama:
+            continue  # modo local não exige Gemini
         cur = current.get(key, "")
         if key == "JWT_SECRET_KEY":
             # gera só se faltar ou for o placeholder — nunca regenera (deslogaria todos)
@@ -203,14 +275,52 @@ def cmd_setup(args) -> int:
     set_env_values(updates)
     print(ok(f"\n✓ Configuração salva em {ENV}"))
     final = read_env_values()
-    if not final.get("GEMINI_API_KEY"):
+    if final.get("LLM_PROVIDER") == "ollama":
+        if not final.get("OLLAMA_MODEL"):
+            print(warn("⚠ nenhum modelo local escolhido ainda — rode 'helena models use' antes de iniciar."))
+    elif not final.get("GEMINI_API_KEY"):
         print(warn("⚠ GEMINI_API_KEY ainda está vazia — a IA não vai funcionar sem ela."))
     print(dim("Rode 'helena start' para iniciar."))
     return 0
 
 
+_KNOWN_ENV_KEYS = (
+    [k for k, *_ in CORE_FIELDS] + [k for k, *_ in ADVANCED_FIELDS]
+    + ["LLM_PROVIDER", "OLLAMA_HOST", "OLLAMA_MODEL", "OLLAMA_MANAGED"]
+)
+
+
+def _pick_env_key(prompt: str) -> str | None:
+    """Seleciona uma chave conhecida do .env, ou digite uma nova (via 'Outra...')."""
+    known = _KNOWN_ENV_KEYS + [k for k in read_env_values() if k not in _KNOWN_ENV_KEYS]
+    options = [(k, k) for k in known] + [("__custom__", "(digitar outra chave)")]
+    picked = select_menu(prompt, options)
+    if picked is None:
+        return None
+    if picked != "__custom__":
+        return picked
+    try:
+        return input("Chave (ex.: GEMINI_API_KEY): ").strip().upper() or None
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+
+
 def cmd_config(args) -> int:
-    if args.action == "list":
+    action = args.action
+    if action is None:
+        if not _interactive():
+            print(err("uso: helena config {list|get|set} [CHAVE] [VALOR]"))
+            return 2
+        action = select_menu(
+            "O que você quer fazer?",
+            [("list", "listar todas"), ("get", "ler uma chave"), ("set", "gravar uma chave")],
+        )
+        if action is None:
+            print(warn("cancelado."))
+            return 1
+
+    if action == "list":
         vals = read_env_values()
         if not vals:
             print(dim("Nenhuma variável configurada (rode 'helena setup')."))
@@ -219,22 +329,35 @@ def cmd_config(args) -> int:
             shown = mask(val) if key in SECRET_KEYS else val
             print(f"  {bold(key)}={shown}")
         return 0
-    if args.action == "get":
-        if not args.key:
+    if action == "get":
+        key = args.key
+        if not key and _interactive():
+            key = _pick_env_key("Qual chave?")
+        if not key:
             print(err("uso: helena config get CHAVE"))
             return 2
-        val = read_env_values().get(args.key)
+        val = read_env_values().get(key)
         if val is None:
-            print(dim(f"{args.key} não configurada"))
+            print(dim(f"{key} não configurada"))
             return 1
         print(val)
         return 0
-    if args.action == "set":
-        if not args.key or args.value is None:
+    if action == "set":
+        key = args.key
+        if not key and _interactive():
+            key = _pick_env_key("Qual chave?")
+        value = args.value
+        if key and value is None and _interactive():
+            try:
+                value = input(f"Novo valor para {bold(key)}: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 1
+        if not key or value is None:
             print(err("uso: helena config set CHAVE VALOR"))
             return 2
-        set_env_values({args.key: args.value})
-        print(ok(f"✓ {args.key} atualizado"))
+        set_env_values({key: value})
+        print(ok(f"✓ {key} atualizado"))
         return 0
     return 2
 
@@ -347,6 +470,7 @@ def cmd_status(args) -> int:
     if pid:
         print(f"saúde:     {ok('/health ok') if healthy else warn('não responde ainda')}")
         print(f"url:       http://localhost:{port}")
+    _print_llm_status()
     return 0 if (pid and healthy) else (0 if not pid else 1)
 
 
@@ -440,8 +564,107 @@ def _update_git() -> int:
 
 
 def cmd_update(args) -> int:
-    mode = getattr(args, "action", None) or "git"
+    mode = getattr(args, "action", None)
+    if mode is None:
+        if _interactive():
+            mode = select_menu(
+                "Como atualizar?",
+                [("git", "puxar do remoto (git pull)"), ("code", "aplicar mudanças locais")],
+            )
+            if mode is None:
+                print(warn("cancelado."))
+                return 1
+        else:
+            mode = "git"
     return _update_code() if mode == "code" else _update_git()
+
+
+# ---------- modelos locais (Ollama) ----------
+# implementação real em ollama_ctl.py (compartilhada com o blueprint web) —
+# aqui só amarra à apresentação no terminal (print colorido)
+OLLAMA_DEFAULT_HOST = ollama_ctl.DEFAULT_HOST
+_RATING_LABEL = {"green": "adequado", "yellow": "roda, mas custa desempenho", "red": "não recomendado pra essa máquina"}
+_RATING_COLOR = {"green": ok, "yellow": warn, "red": err}
+
+
+def _ollama_reachable(host: str, timeout: float = 2.0) -> bool:
+    return ollama_ctl.reachable(host, timeout)
+
+
+def _ollama_list_installed() -> set[str]:
+    return ollama_ctl.list_installed()
+
+
+def _ollama_pull(name: str) -> bool:
+    print(dim(f"baixando {name} (pode demorar um pouco)..."))
+    if ollama_ctl.pull(name):
+        return True
+    print(err("falha ao rodar 'ollama pull'."))
+    return False
+
+
+def _ollama_smoke_test(host: str, model: str, timeout: float = 90.0) -> tuple[bool, str]:
+    return ollama_ctl.smoke_test(host, model, timeout)
+
+
+def _ollama_rm(name: str) -> bool:
+    ok_, msg = ollama_ctl.rm(name)
+    if not ok_:
+        print(err(msg))
+    return ok_
+
+
+def _ensure_ollama_daemon(host: str) -> bool:
+    if not ollama_ctl.reachable(host):
+        print(dim("subindo o daemon do Ollama..."))
+    return ollama_ctl.ensure_daemon(host)
+
+
+def _ensure_ollama_installed() -> bool:
+    if shutil.which("ollama"):
+        return True
+    print(warn("Ollama não encontrado nesta máquina."))
+    if IS_WIN:
+        print(dim("Baixe e instale em: https://ollama.com/download/windows"))
+        print(dim("Depois rode 'helena setup' de novo."))
+        return False
+    if not confirm("Instalar o Ollama agora (instalador oficial, curl | sh)?", default=True):
+        return False
+    print(dim("instalando o Ollama..."))
+    ok_, msg = ollama_ctl.install()
+    if not ok_:
+        print(err(msg))
+        return False
+    print(ok("✓ Ollama instalado."))
+    return True
+
+
+def _describe_model(m: dict, hw: dict, installed: set[str] = frozenset(), active: str | None = None) -> str:
+    rating = local_models.rate_model(m, hw)
+    tag = _RATING_COLOR[rating](f"[{_RATING_LABEL[rating]}]")
+    marks = []
+    if m["name"] == active:
+        marks.append(ok("ativo"))
+    if m["name"] in installed:
+        marks.append(dim("baixado"))
+    suffix = f"  ({', '.join(marks)})" if marks else ""
+    return f"{m['name']:<20} {m['params_b']:>5}B  ~{m['est_gb']:>5.1f}GB  {tag}{suffix}"
+
+
+def _catalog_options(hw: dict, installed: set[str] = frozenset(), active: str | None = None):
+    return [(m["name"], _describe_model(m, hw, installed, active)) for m in local_models.CATALOG]
+
+
+def _print_llm_status() -> None:
+    vals = read_env_values()
+    provider = vals.get("LLM_PROVIDER", "gemini")
+    if provider == "ollama":
+        host = vals.get("OLLAMA_HOST") or OLLAMA_DEFAULT_HOST
+        model = vals.get("OLLAMA_MODEL") or dim("(nenhum — rode 'helena models use')")
+        reach = ok("respondendo") if _ollama_reachable(host) else dim("não respondendo")
+        print(f"IA:        local (ollama) — modelo {model} — {reach}")
+    else:
+        print("IA:        gemini")
 
 
 def cmd_doctor(args) -> int:
@@ -449,13 +672,24 @@ def cmd_doctor(args) -> int:
         mark = ok("✓") if good else err("✗")
         print(f"  {mark} {label}{('  ' + dim(extra)) if extra else ''}")
 
-    import shutil
     line(bool(shutil.which("uv")), "uv instalado", "" if shutil.which("uv") else "instale: https://astral.sh/uv")
     venv_py = Path(_server_python())
     line(venv_py.exists() and ".venv" in str(venv_py), "ambiente (.venv) criado", "" if venv_py.exists() else "rode 'uv sync'")
     line(ENV.exists(), ".env presente", "" if ENV.exists() else "rode 'helena setup'")
     vals = read_env_values()
-    line(bool(vals.get("GEMINI_API_KEY")), "GEMINI_API_KEY configurada")
+    provider = vals.get("LLM_PROVIDER", "gemini")
+    if provider == "ollama":
+        model = vals.get("OLLAMA_MODEL", "")
+        host = vals.get("OLLAMA_HOST") or OLLAMA_DEFAULT_HOST
+        line(bool(model), f"modelo local configurado ({model or 'nenhum'})", "" if model else "rode 'helena models use'")
+        reachable = _ollama_reachable(host)
+        line(reachable, f"Ollama respondendo em {host}", "" if reachable else "'helena start' sobe junto, ou rode 'ollama serve'")
+        if reachable and model:
+            smoke_ok, smoke_detail = _ollama_smoke_test(host, model, timeout=30)
+            line(smoke_ok, f"modelo '{model}' roda de verdade (teste de geração)",
+                 "" if smoke_ok else f"{smoke_detail} — provável instalação quebrada do Ollama; tente reinstalar")
+    else:
+        line(bool(vals.get("GEMINI_API_KEY")), "GEMINI_API_KEY configurada")
     jwt = vals.get("JWT_SECRET_KEY", "")
     line(bool(jwt) and jwt != JWT_PLACEHOLDER, "JWT_SECRET_KEY configurada")
     pid = running_pid()
@@ -466,6 +700,192 @@ def cmd_doctor(args) -> int:
     return 0
 
 
+def cmd_models(args) -> int:
+    """Gerencia modelos locais (Ollama): listar catálogo, trocar/baixar/remover."""
+    action = args.action
+    if action is None:
+        if not _interactive():
+            print(err("uso: helena models {list|use|pull|remove} [nome]"))
+            return 2
+        action = select_menu(
+            "O que fazer com os modelos locais?",
+            [
+                ("list", "listar catálogo (com recomendação pro seu hardware)"),
+                ("use", "trocar o modelo ativo"),
+                ("pull", "baixar um modelo"),
+                ("remove", "remover um modelo já baixado"),
+            ],
+        )
+        if action is None:
+            print(warn("cancelado."))
+            return 1
+
+    if action == "list":
+        hw = local_models.detect_hardware()
+        installed = _ollama_list_installed()
+        active = read_env_values().get("OLLAMA_MODEL")
+        gpu = f"{hw['gpu_vram_gb']}GB VRAM" if hw.get("gpu_vram_gb") else "sem GPU detectada (CPU)"
+        print(bold(f"Hardware: {hw['ram_gb']}GB RAM, {hw['cpu_count']} CPUs, {gpu}\n"))
+        for m in local_models.CATALOG:
+            print("  " + _describe_model(m, hw, installed, active))
+        return 0
+
+    if not shutil.which("ollama"):
+        print(err("Ollama não instalado — rode 'helena setup' e escolha modelo local."))
+        return 1
+
+    name = args.name
+    host = read_env_values().get("OLLAMA_HOST") or OLLAMA_DEFAULT_HOST
+
+    if action == "use":
+        if not name and _interactive():
+            hw = local_models.detect_hardware()
+            installed = _ollama_list_installed()
+            active = read_env_values().get("OLLAMA_MODEL")
+            name = select_menu("Qual modelo usar?", _catalog_options(hw, installed, active))
+        if not name:
+            print(err("uso: helena models use <nome>"))
+            return 2
+        if name not in _ollama_list_installed() and not _ollama_pull(name):
+            print(err(f"não consegui baixar {name}."))
+            return 1
+        _ensure_ollama_daemon(host)
+        smoke_ok, smoke_detail = _ollama_smoke_test(host, name)
+        if not smoke_ok:
+            print(err(f"✗ o modelo baixou mas não RODA: {smoke_detail}"))
+            print(warn("provável instalação quebrada do Ollama — veja 'helena doctor' ou reinstale:"))
+            print(dim("  curl -fsSL https://ollama.com/install.sh | sh"))
+            return 1
+        set_env_values({"OLLAMA_MODEL": name})
+        print(ok(f"✓ modelo ativo: {name} (testado e respondendo)"))
+        return 0
+
+    if action == "pull":
+        if not name and _interactive():
+            hw = local_models.detect_hardware()
+            installed = _ollama_list_installed()
+            name = select_menu("Qual modelo baixar?", _catalog_options(hw, installed))
+        if not name:
+            print(err("uso: helena models pull <nome>"))
+            return 2
+        if not _ollama_pull(name):
+            return 1
+        _ensure_ollama_daemon(host)
+        smoke_ok, smoke_detail = _ollama_smoke_test(host, name)
+        if not smoke_ok:
+            print(err(f"✗ baixou, mas o modelo não RODA: {smoke_detail}"))
+            print(warn("provável instalação quebrada do Ollama — veja 'helena doctor' ou reinstale:"))
+            print(dim("  curl -fsSL https://ollama.com/install.sh | sh"))
+            return 1
+        print(ok("✓ baixado e testado — respondeu normalmente."))
+        return 0
+
+    if action == "remove":
+        installed = _ollama_list_installed()
+        if not name and _interactive():
+            if not installed:
+                print(dim("Nenhum modelo baixado."))
+                return 0
+            name = select_menu("Qual modelo remover?", [(n, n) for n in sorted(installed)])
+        if not name:
+            print(err("uso: helena models remove <nome>"))
+            return 2
+        if _ollama_rm(name):
+            print(ok(f"✓ {name} removido."))
+            return 0
+        return 1
+
+    return 2
+
+
+def _restart_hint() -> None:
+    if running_pid() or (service_installed() and _service_active()):
+        print(dim("Reinicie pra aplicar: helena restart"))
+    else:
+        print(dim("Vale rodar 'helena start' quando quiser usar."))
+
+
+def cmd_provider(args) -> int:
+    """Troca o cérebro da Helena entre Gemini (nuvem) e Ollama (local), com
+    as checagens que 'helena config set LLM_PROVIDER ...' sozinho não faz:
+    valida que o destino realmente tem como funcionar antes de gravar."""
+    vals = read_env_values()
+    current = vals.get("LLM_PROVIDER", "gemini")
+    target = args.name
+
+    if target is None:
+        cur_label = "local (ollama)" if current == "ollama" else "gemini"
+        print(f"Cérebro atual: {bold(cur_label)}")
+        if not _interactive():
+            print(dim("uso: helena provider {gemini|ollama}"))
+            return 0
+        target = select_menu(
+            "Trocar para qual cérebro?",
+            [
+                ("gemini", "Gemini (nuvem)" + (dim("  — atual") if current != "ollama" else "")),
+                ("ollama", "Modelo local (Ollama)" + (dim("  — atual") if current == "ollama" else "")),
+            ],
+            default=1 if current == "ollama" else 0,
+        )
+        if target is None:
+            print(warn("cancelado."))
+            return 1
+
+    if target not in ("gemini", "ollama"):
+        print(err("uso: helena provider {gemini|ollama}"))
+        return 2
+
+    if target == current:
+        print(dim(f"já está em '{target}' — nada a fazer."))
+        return 0
+
+    if target == "gemini":
+        set_env_values({"LLM_PROVIDER": "gemini"})
+        print(ok("✓ cérebro trocado para Gemini."))
+        if not vals.get("GEMINI_API_KEY"):
+            print(warn("⚠ GEMINI_API_KEY vazia — configure com 'helena config set GEMINI_API_KEY sua-chave'."))
+        _restart_hint()
+        return 0
+
+    # target == "ollama"
+    model = vals.get("OLLAMA_MODEL")
+    if not model:
+        print(warn("Nenhum modelo local configurado ainda."))
+        if not shutil.which("ollama"):
+            print(err("Ollama não está instalado — rode 'helena setup' e escolha modelo local."))
+            return 1
+        if not _interactive():
+            print(err("rode 'helena models use <nome>' primeiro, ou 'helena provider' num terminal interativo."))
+            return 1
+        hw = local_models.detect_hardware()
+        installed = _ollama_list_installed()
+        model = select_menu("Qual modelo usar?", _catalog_options(hw, installed))
+        if model is None:
+            print(warn("cancelado."))
+            return 1
+        host = vals.get("OLLAMA_HOST") or OLLAMA_DEFAULT_HOST
+        if model not in installed and not _ollama_pull(model):
+            print(err(f"não consegui baixar {model}."))
+            return 1
+        _ensure_ollama_daemon(host)
+        smoke_ok, smoke_detail = _ollama_smoke_test(host, model)
+        if not smoke_ok:
+            print(err(f"✗ o modelo baixou mas não RODA: {smoke_detail}"))
+            print(warn("provável instalação quebrada do Ollama — veja 'helena doctor' ou reinstale:"))
+            print(dim("  curl -fsSL https://ollama.com/install.sh | sh"))
+            return 1
+
+    set_env_values({
+        "LLM_PROVIDER": "ollama",
+        "OLLAMA_MODEL": model,
+        "OLLAMA_HOST": vals.get("OLLAMA_HOST") or OLLAMA_DEFAULT_HOST,
+        "OLLAMA_MANAGED": vals.get("OLLAMA_MANAGED", "1"),
+    })
+    print(ok(f"✓ cérebro trocado para modelo local ({model})."))
+    _restart_hint()
+    return 0
+
+
 def _find_user_row(con: sqlite3.Connection, identifier: str):
     """Busca por email primeiro (identificador principal agora); cai pra
     username (contas antigas / bookkeeping interno gerado no registro)."""
@@ -473,6 +893,25 @@ def _find_user_row(con: sqlite3.Connection, identifier: str):
     if row is None:
         row = con.execute("SELECT id, username FROM users WHERE username=?", (identifier,)).fetchone()
     return row
+
+
+def _list_user_rows(con: sqlite3.Connection):
+    return con.execute(
+        "SELECT id, username, email, name, is_principal, shell_full_control FROM users ORDER BY id"
+    ).fetchall()
+
+
+def _pick_user_identifier(con: sqlite3.Connection, prompt: str) -> str | None:
+    """Seleciona um usuário existente (mostra email, cai pro username se faltar)."""
+    rows = _list_user_rows(con)
+    if not rows:
+        return None
+    options = []
+    for uid, uname, email, name, *_ in rows:
+        ident = email or uname
+        label = f"{email or uname}" + (f"  [{name}]" if name else "")
+        options.append((ident, label))
+    return select_menu(prompt, options)
 
 
 def cmd_users(args) -> int:
@@ -488,12 +927,27 @@ def cmd_users(args) -> int:
         print(warn("Colunas novas ainda não existem — reinicie o servidor ('helena restart') para migrar."))
         return 1
 
-    action = args.action or "list"
+    action = args.action
+    if action is None:
+        if _interactive():
+            action = select_menu(
+                "O que você quer fazer?",
+                [
+                    ("list", "listar usuários"),
+                    ("principal", "promover a principal"),
+                    ("fullcontrol", "promover a controle absoluto"),
+                    ("normal", "rebaixar a normal"),
+                    ("email", "definir email de conta antiga"),
+                ],
+            )
+            if action is None:
+                print(warn("cancelado."))
+                return 1
+        else:
+            action = "list"
 
     if action == "list":
-        rows = con.execute(
-            "SELECT id, username, email, name, is_principal, shell_full_control FROM users ORDER BY id"
-        ).fetchall()
+        rows = _list_user_rows(con)
         if not rows:
             print(dim("Nenhum usuário cadastrado."))
             return 0
@@ -514,16 +968,27 @@ def cmd_users(args) -> int:
         print(dim("Conta antiga sem email? helena users email <username_antigo> <novo@email.com>"))
         return 0
 
+    identifier = args.identifier
+    if not identifier and _interactive():
+        identifier = _pick_user_identifier(con, "Qual usuário?")
+
     if action == "email":
-        if not args.identifier or not args.value:
+        value = args.value
+        if identifier and value is None and _interactive():
+            try:
+                value = input("Novo email: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 1
+        if not identifier or not value:
             print(err("uso: helena users email <email_ou_username_atual> <novo_email>"))
             return 2
-        row = _find_user_row(con, args.identifier)
+        row = _find_user_row(con, identifier)
         if row is None:
-            print(err(f"usuário '{args.identifier}' não encontrado (veja 'helena users')"))
+            print(err(f"usuário '{identifier}' não encontrado (veja 'helena users')"))
             return 1
         uid, uname = row
-        new_email = args.value.strip().lower()
+        new_email = value.strip().lower()
         try:
             with con:
                 con.execute("UPDATE users SET email=? WHERE id=?", (new_email, uid))
@@ -533,12 +998,12 @@ def cmd_users(args) -> int:
         print(ok(f"✓ {uname} (id {uid}) agora tem email {new_email}."))
         return 0
 
-    if not args.identifier:
+    if not identifier:
         print(err(f"uso: helena users {action} <email_ou_username>"))
         return 2
-    row = _find_user_row(con, args.identifier)
+    row = _find_user_row(con, identifier)
     if row is None:
-        print(err(f"usuário '{args.identifier}' não encontrado (veja 'helena users')"))
+        print(err(f"usuário '{identifier}' não encontrado (veja 'helena users')"))
         return 1
     uid, uname = row
 
@@ -550,7 +1015,7 @@ def cmd_users(args) -> int:
         )
     if action == "fullcontrol":
         print(err(f"⚡ {uname} agora tem CONTROLE ABSOLUTO — a Helena roda QUALQUER comando SEM pedir aprovação."))
-        print(dim("   Cada comando ainda aparece no chat depois de rodar. Reverta com: helena users principal|normal " + args.identifier))
+        print(dim("   Cada comando ainda aparece no chat depois de rodar. Reverta com: helena users principal|normal " + identifier))
     elif action == "principal":
         print(ok(f"✓ {uname} agora é PRINCIPAL — pode pedir comandos (com aprovação no chat)."))
     else:
@@ -711,11 +1176,30 @@ def _service_status() -> int:
         port = env_port()
         print(f"saúde:     {ok('/health ok') if health_ok(port) else warn('não responde')}")
         print(f"url:       http://localhost:{port}")
+    _print_llm_status()
     return 0
 
 
 def cmd_service(args) -> int:
     action = args.action
+    if action is None:
+        if not _interactive():
+            print(err("uso: helena service {install|uninstall|status|start|stop|restart}"))
+            return 2
+        action = select_menu(
+            "O que fazer com o serviço?",
+            [
+                ("status", "ver estado"),
+                ("install", "instalar (sobe no login)"),
+                ("start", "iniciar"),
+                ("stop", "parar"),
+                ("restart", "reiniciar"),
+                ("uninstall", "remover"),
+            ],
+        )
+        if action is None:
+            print(warn("cancelado."))
+            return 1
     if action == "install":
         return _service_install()
     if action == "uninstall":
@@ -752,7 +1236,19 @@ def cmd_test(args) -> int:
 
 
 def cmd_autoupdate(args) -> int:
-    on = args.action == "on"
+    action = args.action
+    if action is None:
+        if not _interactive():
+            print(err("uso: helena autoupdate {on|off}"))
+            return 2
+        action = select_menu(
+            "Auto-update diário (git pull + uv sync)?",
+            [("on", "ligar"), ("off", "desligar")],
+        )
+        if action is None:
+            print(warn("cancelado."))
+            return 1
+    on = action == "on"
     if IS_WIN:
         if on:
             tr = f'cmd /c cd /d "{ROOT}" && "{ROOT / "helena.cmd"}" update git'
@@ -882,7 +1378,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_setup)
 
     cf = sub.add_parser("config", help="ler/gravar variáveis sem interação")
-    cf.add_argument("action", choices=["list", "get", "set"])
+    cf.add_argument("action", nargs="?", choices=["list", "get", "set"], default=None)
     cf.add_argument("key", nargs="?")
     cf.add_argument("value", nargs="?")
     cf.set_defaults(func=cmd_config)
@@ -898,17 +1394,17 @@ def build_parser() -> argparse.ArgumentParser:
     lg.set_defaults(func=cmd_logs)
 
     up = sub.add_parser("update", help="atualizar: 'git' (puxa do remoto) ou 'code' (aplica mudanças locais)")
-    up.add_argument("action", nargs="?", choices=["git", "code"], default="git")
+    up.add_argument("action", nargs="?", choices=["git", "code"], default=None)
     up.set_defaults(func=cmd_update)
 
     sub.add_parser("test", help="rodar em primeiro plano p/ testar antes de instalar (Ctrl+C para)").set_defaults(func=cmd_test)
 
     sv = sub.add_parser("service", help="instalar/gerir como serviço do sistema (sobe no login)")
-    sv.add_argument("action", choices=["install", "uninstall", "status", "start", "stop", "restart"])
+    sv.add_argument("action", nargs="?", choices=["install", "uninstall", "status", "start", "stop", "restart"], default=None)
     sv.set_defaults(func=cmd_service)
 
     au = sub.add_parser("autoupdate", help="ligar/desligar auto-update diário (git)")
-    au.add_argument("action", choices=["on", "off"])
+    au.add_argument("action", nargs="?", choices=["on", "off"], default=None)
     au.set_defaults(func=cmd_autoupdate)
 
     ad = sub.add_parser("audit", help="ver o que a Helena executou (shell/desktop)")
@@ -923,8 +1419,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("doctor", help="checar pré-requisitos e estado").set_defaults(func=cmd_doctor)
 
+    md = sub.add_parser("models", help="gerenciar modelos locais (Ollama): listar/trocar/baixar/remover")
+    md.add_argument("action", nargs="?", choices=["list", "use", "pull", "remove"], default=None)
+    md.add_argument("name", nargs="?", help="nome/tag do modelo (ex.: qwen2.5:7b)")
+    md.set_defaults(func=cmd_models)
+
+    pv = sub.add_parser("provider", help="trocar o cérebro da Helena entre 'gemini' (nuvem) e 'ollama' (local)")
+    pv.add_argument("name", nargs="?", choices=["gemini", "ollama"], default=None)
+    pv.set_defaults(func=cmd_provider)
+
     us = sub.add_parser("users", help="listar usuários, definir permissão, ou atribuir email a conta antiga")
-    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "email"], default="list")
+    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "email"], default=None)
     us.add_argument("identifier", nargs="?", help="email (ou username antigo)")
     us.add_argument("value", nargs="?", help="novo email — só usado com a ação 'email'")
     us.set_defaults(func=cmd_users)

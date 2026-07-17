@@ -1,7 +1,7 @@
 """App factory da Helena."""
 import logging
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
 from app.config import Config
@@ -59,6 +59,7 @@ def create_app(config_object: type = Config) -> Flask:
     from app.blueprints.library import library_bp
     from app.blueprints.media import media_bp
     from app.blueprints.reminders import reminders_bp
+    from app.blueprints.settings import settings_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
@@ -68,6 +69,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(commands_bp)
     app.register_blueprint(library_bp)
     app.register_blueprint(federation_bp)
+    app.register_blueprint(settings_bp)
 
     with app.app_context():
         db.create_all()
@@ -76,6 +78,14 @@ def create_app(config_object: type = Config) -> Flask:
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    # página web (chat + configuração) — arquivo estático único, sem
+    # template engine (a página fala com a API via fetch(), igual a
+    # qualquer outro cliente REST — nada de dado do servidor é renderizado
+    # no HTML, então não há superfície de template injection aqui)
+    @app.get("/")
+    def webui():
+        return send_from_directory(app.static_folder, "index.html")
 
     return app
 
@@ -133,6 +143,13 @@ def _ensure_columns() -> None:
             if col not in pcols:
                 db.session.execute(text(ddl))
                 db.session.commit()
+    if "notification_queue" in insp.get_table_names():
+        nqcols = {c["name"] for c in insp.get_columns("notification_queue")}
+        if "desktop_notified" not in nqcols:
+            db.session.execute(
+                text("ALTER TABLE notification_queue ADD COLUMN desktop_notified BOOLEAN NOT NULL DEFAULT 0")
+            )
+            db.session.commit()
     if "peer_messages" in insp.get_table_names():
         pmcols = {c["name"] for c in insp.get_columns("peer_messages")}
         for col, ddl in (

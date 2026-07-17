@@ -28,6 +28,19 @@ def get_client(api_key: str) -> genai.Client:
     return _client
 
 
+def generate_text(system_instruction: str, contents, *, api_key: str, model: str, json_mode: bool = False) -> str:
+    """Geração de texto solta (sem tools) — resumo, memória, corpo de
+    notificação etc. `contents` aceita tanto uma string quanto uma lista de
+    `types.Content` (multi-turno), igual ao SDK do Gemini já aceita nativamente."""
+    client = get_client(api_key)
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        **({"response_mime_type": "application/json"} if json_mode else {}),
+    )
+    resp = client.models.generate_content(model=model, contents=contents, config=config)
+    return (resp.text or "").strip()
+
+
 def _is_screenshot_turn(content) -> bool:
     """True se `content` é um turno de screenshot injetado (para descartá-lo e
     manter só o mais recente)."""

@@ -10,11 +10,27 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "==> uv não encontrado; instalando..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "ERRO: uv foi 'instalado' mas não aparece em \$PATH (\$HOME/.local/bin)."
+    echo "Abra um terminal novo e rode este script de novo, ou instale manualmente:"
+    echo "  https://astral.sh/uv"
+    exit 1
+  fi
 fi
 
 # 2. dependências (o uv provisiona o Python 3.14 automaticamente)
 echo "==> Instalando dependências (uv sync)..."
 uv sync
+
+# Verificação explícita (não só "o comando rodou sem erro"): é este arquivo
+# que cli.py/_server_python() e o wrapper 'helena' vão procurar depois — se
+# não existir aqui, é melhor falhar AGORA com uma mensagem clara do que
+# deixar uma instalação pela metade que só quebra no primeiro 'helena start'.
+if [ ! -x ".venv/bin/python" ]; then
+  echo "ERRO: 'uv sync' terminou mas .venv/bin/python não existe — algo falhou."
+  echo "Rode 'uv sync' manualmente pra ver o erro completo."
+  exit 1
+fi
 
 # 3. .env a partir do exemplo
 if [ ! -f .env ]; then

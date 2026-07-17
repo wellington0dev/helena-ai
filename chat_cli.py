@@ -10,6 +10,8 @@ from pathlib import Path
 
 import requests
 
+from cli_select import confirm
+
 SESSION_FILENAME = "cli_session.json"
 LOGIN_TIMEOUT = 10
 # turno da IA roda tool-calling inline, pode ter várias iterações — generoso
@@ -139,8 +141,7 @@ def api_history(base_url, token, limit=20) -> list[dict]:
 def _authenticate(base_url) -> dict:
     print(bold("Helena — login"))
     print(dim(f"servidor: {base_url}"))
-    choice = input("Já tem conta? [S/n] ").strip().lower()
-    if choice in ("", "s", "sim", "y", "yes"):
+    if confirm("Já tem conta?", default=True):
         email = input("Email: ").strip()
         password = getpass.getpass("Senha: ")
         return api_login(base_url, email, password)

@@ -16,9 +16,8 @@ from collections.abc import Callable
 from flask import current_app
 from google.genai import types
 
-from app.agent import gemini
+from app.agent import llm
 from app.agent.desktop_task_tools import DESKTOP_TASK_TOOLS, dispatch_desktop_task_tool
-from app.agent.gemini import get_client
 from app.agent.loop_tools import LOOP_TOOLS, dispatch_loop_tool
 from app.extensions import db
 from app.models import Job, PeerMessage
@@ -80,10 +79,8 @@ def _research(job: Job, on_progress: ProgressFn | None = None) -> str:
     task = _prompt(job)
 
     def _run(force_search: bool):
-        return gemini.run_agent(
+        return llm.run_agent(
             user_id=job.user_id,
-            api_key=cfg["GEMINI_API_KEY"],
-            model=cfg["GEMINI_MODEL"],
             max_iters=cfg["MAX_JOB_ITERATIONS"],
             system_instruction=_RESEARCH_LOOP_INSTRUCTION,
             initial_contents=_kickoff(task, force_search),
@@ -111,10 +108,8 @@ def _kickoff_desktop(task: str) -> list:
 def _desktop_task(job: Job, on_progress: ProgressFn | None = None) -> str:
     cfg = current_app.config
     task = _prompt(job)
-    text, _ = gemini.run_agent(
+    text, _ = llm.run_agent(
         user_id=job.user_id,
-        api_key=cfg["GEMINI_API_KEY"],
-        model=cfg["GEMINI_MODEL"],
         max_iters=cfg["MAX_DESKTOP_JOB_ITERATIONS"],
         system_instruction=_DESKTOP_TASK_INSTRUCTION,
         initial_contents=_kickoff_desktop(task),
@@ -133,14 +128,7 @@ def _desktop_task(job: Job, on_progress: ProgressFn | None = None) -> str:
 
 
 def _plan(job: Job, on_progress: ProgressFn | None = None) -> str:
-    cfg = current_app.config
-    client = get_client(cfg["GEMINI_API_KEY"])
-    resp = client.models.generate_content(
-        model=cfg["GEMINI_MODEL"],
-        contents=_prompt(job),
-        config=types.GenerateContentConfig(system_instruction=_PLAN_INSTRUCTION),
-    )
-    return (resp.text or "").strip()
+    return llm.generate_text(_PLAN_INSTRUCTION, _prompt(job))
 
 
 _FEDERATION_REPLY_INSTRUCTION = (
@@ -177,7 +165,6 @@ def _federation_reply(job: Job, *, responding_to_kind: str = "chat") -> str:
     só afeta o texto do prompt — nenhuma fonte de dado nova.
     """
     cfg = current_app.config
-    client = get_client(cfg["GEMINI_API_KEY"])
     peer_id = (job.payload or {}).get("peer_id")
     rows = (
         db.session.query(PeerMessage)
@@ -195,11 +182,7 @@ def _federation_reply(job: Job, *, responding_to_kind: str = "chat") -> str:
     system_instruction = _FEDERATION_REPLY_INSTRUCTION
     if responding_to_kind == "help_request":
         system_instruction += _HELP_REQUEST_NOTE
-    resp = client.models.generate_content(
-        model=cfg["GEMINI_MODEL"], contents=contents,
-        config=types.GenerateContentConfig(system_instruction=system_instruction),
-    )
-    return (resp.text or "").strip()
+    return llm.generate_text(system_instruction, contents)
 
 
 _EXECUTORS = {"research": _research, "plan": _plan, "desktop_task": _desktop_task}

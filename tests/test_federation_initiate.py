@@ -316,7 +316,7 @@ def test_complete_federation_reply_tags_help_response_when_triggered_by_help_req
     job_id = _make_job(app, uid, pid, trigger_id)
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
     sent_kwargs = {}
 
     def _capture_send(peer, body, **kwargs):
@@ -348,7 +348,7 @@ def test_complete_federation_reply_stays_chat_when_triggered_by_chat(app, make_u
     job_id = _make_job(app, uid, pid, trigger_id)
 
     fake_client = _FakeClient()
-    monkeypatch.setattr("app.jobs.executors.get_client", lambda key: fake_client)
+    monkeypatch.setattr("app.agent.gemini.get_client", lambda key: fake_client)
     sent_kwargs = {}
 
     def _capture_send(peer, body, **kwargs):

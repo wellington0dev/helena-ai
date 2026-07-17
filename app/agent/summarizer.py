@@ -5,11 +5,9 @@ que envelhece para fora dessa janela é fundido (não substituído) no
 `conversation_summary`. Roda inline após o turno do agente. Pode migrar para um
 `job` na Fase 5 sem mudar a lógica.
 """
-from google import genai
-from google.genai import types
 from sqlalchemy import select
 
-from app.agent.gemini import get_client
+from app.agent import llm
 from app.extensions import db, write_lock
 from app.models import ConversationSummary, Message
 
@@ -35,7 +33,7 @@ def _oldest_in_window_id(user_id: int, window: int) -> int | None:
     return min(rows)
 
 
-def maybe_summarize(user_id: int, api_key: str, model: str, window: int) -> bool:
+def maybe_summarize(user_id: int, window: int) -> bool:
     """Resume o lote que saiu da janela, se houver ao menos `window` mensagens
     fora dela ainda não resumidas. Retorna True se resumiu."""
     cutoff = _oldest_in_window_id(user_id, window)
@@ -66,19 +64,7 @@ def maybe_summarize(user_id: int, api_key: str, model: str, window: int) -> bool
         f"LOTE DE MENSAGENS ANTIGAS:\n{lote_txt}"
     )
 
-    client = get_client(api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=[
-            types.Content(
-                role="user", parts=[types.Part.from_text(text=user_prompt)]
-            )
-        ],
-        config=types.GenerateContentConfig(
-            system_instruction=_SUMMARY_INSTRUCTION
-        ),
-    )
-    new_summary = (response.text or "").strip()
+    new_summary = llm.generate_text(_SUMMARY_INSTRUCTION, user_prompt).strip()
     if not new_summary:
         return False
 

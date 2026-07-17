@@ -11,10 +11,9 @@ Guardas contra perda de dados (é uma reescrita LLM da memória do usuário):
 import json
 
 from flask import current_app
-from google.genai import types
 from sqlalchemy import select
 
-from app.agent.gemini import get_client
+from app.agent import llm
 from app.extensions import db, write_lock
 from app.models import AiNote, UserProfile
 
@@ -26,7 +25,7 @@ _INSTRUCTION = (
 )
 
 
-def maybe_consolidate(user_id: int, api_key: str, model: str) -> None:
+def maybe_consolidate(user_id: int) -> None:
     threshold = current_app.config["MEMORY_NOTES_THRESHOLD"]
     keep = current_app.config["MEMORY_NOTES_KEEP"]
     total = db.session.query(AiNote).filter_by(user_id=user_id).count()
@@ -47,19 +46,12 @@ def maybe_consolidate(user_id: int, api_key: str, model: str) -> None:
     notes_text = "\n".join(f"- [{n.category}] {n.content}" for n in old_notes)
 
     try:
-        client = get_client(api_key)
-        resp = client.models.generate_content(
-            model=model,
-            contents=(
-                f"Perfil atual:\n{json.dumps(current, ensure_ascii=False)}\n\n"
-                f"Anotações a absorver:\n{notes_text}"
-            ),
-            config=types.GenerateContentConfig(
-                system_instruction=_INSTRUCTION,
-                response_mime_type="application/json",
-            ),
+        prompt = (
+            f"Perfil atual:\n{json.dumps(current, ensure_ascii=False)}\n\n"
+            f"Anotações a absorver:\n{notes_text}"
         )
-        new_profile = json.loads(resp.text or "")
+        text = llm.generate_text(_INSTRUCTION, prompt, json_mode=True)
+        new_profile = json.loads(text or "")
     except Exception as exc:  # noqa: BLE001 — falha NUNCA poda (sem perda de dados)
         current_app.logger.warning("consolidação de memória falhou: %s", exc)
         return

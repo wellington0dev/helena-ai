@@ -27,6 +27,9 @@ class NotificationQueue(db.Model):
     type = db.Column(db.Text, nullable=False)  # reminder|ai_initiative|job_done
     reference_id = db.Column(db.Integer, nullable=True)  # reminder_id / job_id
     delivered = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    # separado de `delivered` (que é o ack do app mobile): marca se JÁ tocamos
+    # a notificação nativa do desktop onde o servidor roda (ver notifications_dispatcher.py)
+    desktop_notified = db.Column(db.Boolean, default=False, nullable=False, index=True)
     created_at = db.Column(UtcDateTime, default=_utcnow, nullable=False)
 
     def to_dict(self) -> dict:

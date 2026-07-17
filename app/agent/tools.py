@@ -285,8 +285,15 @@ TOOL_DECLARATIONS = types.Tool(
 )
 
 
-def build_tool_declarations(user_id: int) -> types.Tool:
-    """Declarações de tools do CHAT filtradas pelo nível do usuário."""
+# Tools Gemini-exclusivas (geração de imagem/áudio) — o Ollama não faz
+# nenhuma das duas. Filtradas fora quando o provider ativo não é 'gemini',
+# pra o modelo local nunca tentar chamar algo que não pode cumprir.
+_GEMINI_ONLY_TOOL_NAMES = {"generate_image", "generate_audio"}
+
+
+def build_tool_declarations(user_id: int, provider: str = "gemini") -> types.Tool:
+    """Declarações de tools do CHAT filtradas pelo nível do usuário e, se
+    `provider` não for 'gemini', também pelas capacidades do provider ativo."""
     decls = list(_BASE_DECLS)
     level = shell_level(user_id)
     if level in ("principal", "full"):
@@ -300,6 +307,8 @@ def build_tool_declarations(user_id: int) -> types.Tool:
     # acontece em runtime no handler, não aqui.
     if db.session.query(Peer).filter_by(user_id=user_id).first() is not None:
         decls += FEDERATION_INITIATE_DECLS
+    if provider != "gemini":
+        decls = [d for d in decls if d.name not in _GEMINI_ONLY_TOOL_NAMES]
     return types.Tool(function_declarations=decls)
 
 

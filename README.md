@@ -151,5 +151,20 @@ Ficam no `.env` (não versionado). Veja `.env.example`.
 | `GEMINI_TTS_VOICE` | `Kore` | Voz do TTS. |
 | `HELENA_DATA_DIR` | `./data` | Diretório de dados (SQLite). |
 | `HELENA_MEDIA_DIR` | `./data/media` | Diretório de mídia. |
+| `HELENA_DESKTOP_NOTIFICATIONS` | `1` | Notificação nativa do SO onde o servidor roda (`0` desliga). |
+
+## Notificações no desktop
+
+Além da fila que o app Android puxa, o servidor também dispara a notificação
+como **toast nativo do sistema operacional** onde ele está rodando — reminders,
+"terminei sua tarefa", mensagens de peers federados, etc. Só funciona com o
+servidor numa sessão gráfica logada (mesma exigência do controle de desktop
+acima); em VPS/headless a tentativa falha silenciosamente. Desliga com
+`HELENA_DESKTOP_NOTIFICATIONS=0`.
+
+- **Linux**: via `notify-send` (pacote `libnotify-bin`/`libnotify`, geralmente
+  já vem com o ambiente gráfico).
+- **macOS**: via `osascript` (nativo, nada a instalar).
+- **Windows**: via PowerShell (nativo). *Escrito, mas não testado em Windows.*
 
 Os dados (banco SQLite, mídia, logs, pid) ficam em `data/` — fora do git.

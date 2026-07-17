@@ -4,8 +4,17 @@
 set -e
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 cd "$DIR"
-if command -v uv >/dev/null 2>&1; then
+
+# Preferência 1: o python de dentro do .venv já provisionado — não depende de
+# 'uv' estar no PATH desta sessão (um shell aberto antes do install.sh rodar,
+# ou um rc file não recarregado, pode não enxergar o PATH atualizado ainda;
+# o .venv em disco não tem esse problema).
+if [ -x "$DIR/.venv/bin/python" ]; then
+  exec "$DIR/.venv/bin/python" cli.py "$@"
+elif command -v uv >/dev/null 2>&1; then
   exec uv run python cli.py "$@"
+elif [ -x "$HOME/.local/bin/uv" ]; then
+  exec "$HOME/.local/bin/uv" run python cli.py "$@"
 else
   exec python3 cli.py "$@"
 fi

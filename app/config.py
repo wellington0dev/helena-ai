@@ -31,6 +31,12 @@ def _sqlite_uri(env_value: str | None) -> str:
 
 
 class Config:
+    # Caminho do .env que o blueprint /settings lê/escreve — o MESMO arquivo
+    # que o cli.py usa (fonte única de verdade). Override só existe pros
+    # testes (tests/conftest.py aponta pra um tmpdir, nunca pro .env real
+    # do repositório).
+    ENV_FILE_PATH = _abs(os.environ.get("HELENA_ENV_FILE", BASE_DIR / ".env"))
+
     # Banco: SQLite local, um arquivo em data/ (sempre absoluto)
     SQLALCHEMY_DATABASE_URI = _sqlite_uri(os.environ.get("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -45,15 +51,30 @@ class Config:
     # Chat: quantas mensagens cruas mandar ao modelo / gatilho do resumo rolante
     CHAT_WINDOW = 10
 
+    # Cérebro do agente: 'gemini' (nuvem) ou 'ollama' (modelo local). Default
+    # 'gemini' preserva o comportamento de sempre pra quem não mexer no .env.
+    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
+
     # Gemini (cérebro do agente)
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     # temperatura do agente: baixa = mais consistência de tool-calling (§tier1)
+    # (compartilhada entre Gemini e Ollama — não é um parâmetro exclusivo do Gemini)
     GEMINI_TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "0.5"))
-    # modelos de mídia (Fase 3)
+    # modelos de mídia (Fase 3) — SEMPRE via Gemini, o Ollama não gera imagem/TTS
     GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
     GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     GEMINI_TTS_VOICE = os.environ.get("GEMINI_TTS_VOICE", "Kore")
+
+    # Ollama (cérebro local, LLM_PROVIDER=ollama)
+    OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+    OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "")
+    # se a Helena sobe/derruba o daemon 'ollama serve' junto do próprio ciclo
+    # de vida (helena start/stop, ou serviço de sistema) — '0' desliga, útil
+    # se o usuário já gerencia o Ollama por conta própria (ex.: serviço
+    # próprio instalado pelo instalador oficial do Ollama)
+    OLLAMA_MANAGED = os.environ.get("OLLAMA_MANAGED", "1") != "0"
+    OLLAMA_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("OLLAMA_REQUEST_TIMEOUT_SECONDS", "300"))
     # limite de iterações do loop de tool-calling (evita loop infinito, §15)
     MAX_TOOL_ITERATIONS = 6
     # memória de longo prazo: acima do teto, consolida notas antigas no perfil
@@ -88,6 +109,10 @@ class Config:
     FEDERATION_AI_INITIATE_COOLDOWN_SECONDS = int(
         os.environ.get("FEDERATION_AI_INITIATE_COOLDOWN_SECONDS", "3600")
     )
+
+    # Notificação nativa do SO onde o servidor roda (além da notification_queue
+    # pro app mobile) — desliga com HELENA_DESKTOP_NOTIFICATIONS=0 (ex.: VPS headless)
+    DESKTOP_NOTIFICATIONS_ENABLED = os.environ.get("HELENA_DESKTOP_NOTIFICATIONS", "1") != "0"
 
     # Upload: tamanho máximo de arquivo (25 MB)
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024

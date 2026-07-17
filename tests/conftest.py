@@ -10,6 +10,9 @@ _TMP = tempfile.mkdtemp(prefix="helena-test-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP}/test.db"
 os.environ["HELENA_DATA_DIR"] = _TMP
 os.environ["HELENA_MEDIA_DIR"] = f"{_TMP}/media"
+# aponta pra um .env de mentira no tmpdir — sem isso, o blueprint /settings
+# leria/escreveria no .env DE VERDADE do repositório durante os testes
+os.environ["HELENA_ENV_FILE"] = f"{_TMP}/.env"
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ["JWT_SECRET_KEY"] = "test-secret"
 

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helena</title>
+<link rel="stylesheet" href="/static/webui.css">
+</head>
+<body>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- ---------- login ---------- -->
+<div id="login-screen" class="screen">
+  <form id="login-form" class="login-card">
+    <h1>Helena</h1>
+    <p class="dim">entre com sua conta</p>
+    <label>Email
+      <input type="email" id="login-email" required autocomplete="email">
+    </label>
+    <label>Senha
+      <input type="password" id="login-password" required autocomplete="current-password">
+    </label>
+    <button type="submit">Entrar</button>
+    <p id="login-error" class="error" hidden></p>
+  </form>
+</div>
+
+<!-- ---------- app ---------- -->
+<div id="app-screen" class="screen" hidden>
+  <header class="topbar">
+    <div class="brand">Helena</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="settings">Configurações</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="user-name" class="dim"></span>
+      <button id="logout-btn" class="ghost">Sair</button>
+    </div>
+  </header>
+
+  <!-- ===== chat ===== -->
+  <section id="tab-chat" class="tab-panel active">
+    <div id="chat-messages" class="chat-messages"></div>
+    <form id="chat-form" class="chat-input-row">
+      <textarea id="chat-input" placeholder="Digite sua mensagem..." rows="1" required></textarea>
+      <button type="submit" id="chat-send">Enviar</button>
+    </form>
+  </section>
+
+  <!-- ===== settings ===== -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="settings-scroll">
+
+      <div class="card">
+        <h2>Cérebro</h2>
+        <label>Provider
+          <select id="s-LLM_PROVIDER">
+            <option value="gemini">Gemini (nuvem)</option>
+            <option value="ollama">Modelo local (Ollama)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card" id="gemini-card">
+        <h2>Gemini</h2>
+        <label>Chave da API
+          <input type="password" id="s-GEMINI_API_KEY" placeholder="deixe em branco pra não mexer">
+        </label>
+        <label>Modelo do agente
+          <input type="text" id="s-GEMINI_MODEL">
+        </label>
+        <label>Modelo de imagem
+          <input type="text" id="s-GEMINI_IMAGE_MODEL">
+        </label>
+        <label>Modelo de TTS
+          <input type="text" id="s-GEMINI_TTS_MODEL">
+        </label>
+        <label>Voz do TTS
+          <input type="text" id="s-GEMINI_TTS_VOICE">
+        </label>
+      </div>
+
+      <div class="card" id="ollama-card">
+        <h2>Modelo local (Ollama)</h2>
+        <label>Endereço do daemon
+          <input type="text" id="s-OLLAMA_HOST">
+        </label>
+        <label class="row">
+          <input type="checkbox" id="s-OLLAMA_MANAGED">
+          Helena sobe/derruba o Ollama junto do próprio ciclo de vida
+        </label>
+        <p id="ollama-hw" class="dim"></p>
+        <div id="ollama-catalog" class="catalog"></div>
+        <div id="ollama-pull-progress" class="pull-progress" hidden>
+          <div class="spinner"></div>
+          <span id="ollama-pull-label"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Rede</h2>
+        <p class="warn">⚠ mudar porta/host muda o endereço de acesso — você vai
+          precisar navegar pro endereço novo manualmente.</p>
+        <label>Porta
+          <input type="text" id="s-HELENA_PORT">
+        </label>
+        <label>Host (bind)
+          <input type="text" id="s-HELENA_HOST">
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Notificações e federação</h2>
+        <label class="row">
+          <input type="checkbox" id="s-HELENA_DESKTOP_NOTIFICATIONS">
+          Notificação nativa no desktop onde o servidor roda
+        </label>
+        <label>URL pública (federação Helena-a-Helena)
+          <input type="text" id="s-FEDERATION_PUBLIC_URL" placeholder="https://sua-instancia.exemplo.ts.net">
+        </label>
+      </div>
+
+      <div class="card dim-card">
+        <h2>Informativo (só leitura — via terminal)</h2>
+        <ul id="settings-info" class="info-list"></ul>
+      </div>
+
+    </div>
+
+    <div class="settings-footer">
+      <span id="settings-status" class="dim"></span>
+      <button id="save-restart-btn">Salvar e reiniciar</button>
+    </div>
+  </section>
+</div>
+
+<script src="/static/webui.js"></script>
+</body>
+</html>

@@ -3,7 +3,6 @@
 Best-effort: se o Gemini falhar, cai num fallback simples (CLAUDE.md §9).
 """
 from flask import current_app
-from google.genai import types
 
 from app.models import Reminder, UserProfile
 from app.extensions import db
@@ -31,9 +30,8 @@ def generate_body(reminder: Reminder, stage: str, when=None) -> str:
     """Texto da notificação para uma etapa. Nunca levanta — usa fallback.
     `when` (opcional) = momento da ocorrência (usado nos recorrentes)."""
     try:
-        from app.agent.gemini import get_client  # import tardio (evita ciclo)
+        from app.agent import llm  # import tardio (evita ciclo)
 
-        cfg = current_app.config
         nome = None
         prof = db.session.get(UserProfile, reminder.user_id)
         if prof and prof.profile:
@@ -47,13 +45,7 @@ def generate_body(reminder: Reminder, stage: str, when=None) -> str:
             f"Etapa do lembrete: {_STAGE_LABEL.get(stage, stage)}\n"
             f"Nome do usuário: {nome or 'não informado'}"
         )
-        client = get_client(cfg["GEMINI_API_KEY"])
-        resp = client.models.generate_content(
-            model=cfg["GEMINI_MODEL"],
-            contents=contexto,
-            config=types.GenerateContentConfig(system_instruction=_INSTRUCTION),
-        )
-        text = (resp.text or "").strip()
+        text = llm.generate_text(_INSTRUCTION, contexto)
         return text or _fallback(reminder, stage)
     except Exception as exc:  # noqa: BLE001
         current_app.logger.warning("gera body de notificação falhou: %s", exc)

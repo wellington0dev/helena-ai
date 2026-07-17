@@ -7,7 +7,7 @@ texto final vira mais uma. `handle_user_turn` devolve todas em ordem cronológic
 from flask import current_app
 from sqlalchemy import select
 
-from app.agent import gemini, summarizer
+from app.agent import llm, summarizer
 from app.agent.shell_tool import reset_shell_budget
 from app.extensions import db, write_lock
 from app.models import Message
@@ -18,15 +18,11 @@ def handle_user_turn(user_id: int, since_msg_id: int) -> list[Message]:
     persiste as respostas do assistant, dispara o resumo rolante e devolve todas
     as mensagens do assistant criadas neste turno (mídia + texto final)."""
     cfg = current_app.config
-    api_key = cfg["GEMINI_API_KEY"]
-    model = cfg["GEMINI_MODEL"]
     reset_shell_budget()  # zera o orçamento de shell por turno
 
     def _run():
-        return gemini.run_agent(
+        return llm.run_agent(
             user_id=user_id,
-            api_key=api_key,
-            model=model,
             max_iters=cfg["MAX_TOOL_ITERATIONS"],
         )
 
@@ -82,19 +78,14 @@ def handle_user_turn(user_id: int, since_msg_id: int) -> list[Message]:
 
     # resumo rolante (inline por ora; pode virar job na Fase 5)
     try:
-        summarizer.maybe_summarize(
-            user_id=user_id,
-            api_key=api_key,
-            model=model,
-            window=cfg["CHAT_WINDOW"],
-        )
+        summarizer.maybe_summarize(user_id=user_id, window=cfg["CHAT_WINDOW"])
     except Exception as exc:  # noqa: BLE001 — resumo não deve derrubar a resposta
         current_app.logger.warning("resumo rolante falhou: %s", exc)
 
     # memória de longo prazo: consolida notas antigas no perfil (best-effort)
     try:
         from app.agent import memory
-        memory.maybe_consolidate(user_id=user_id, api_key=api_key, model=model)
+        memory.maybe_consolidate(user_id=user_id)
     except Exception as exc:  # noqa: BLE001
         current_app.logger.warning("consolidação de memória falhou: %s", exc)
 

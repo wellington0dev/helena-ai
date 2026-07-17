@@ -100,7 +100,11 @@ def send_message():
         user_dict = user_msg.to_dict()
         since_id = user_msg.id
 
-    if not current_app.config.get("GEMINI_API_KEY"):
+    cfg = current_app.config
+    if cfg.get("LLM_PROVIDER") == "ollama":
+        if not cfg.get("OLLAMA_MODEL"):
+            return jsonify(error="LLM_PROVIDER=ollama mas OLLAMA_MODEL não configurado"), 503
+    elif not cfg.get("GEMINI_API_KEY"):
         return jsonify(error="GEMINI_API_KEY não configurada"), 503
 
     replies = runner.handle_user_turn(user_id, since_id)

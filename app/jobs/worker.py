@@ -11,9 +11,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import current_app
-from google.genai import types
 
-from app.agent.gemini import get_client
+from app.agent import llm
 from app.extensions import db, socketio, write_lock
 from app.federation.client import FederationError, send_message
 from app.jobs import executors
@@ -45,19 +44,12 @@ def _claim(job_id: int) -> bool:
 def _job_done_body(title: str, result: str) -> str:
     """Corpo curto da notificação, escrito pela IA. Best-effort com fallback."""
     try:
-        cfg = current_app.config
-        client = get_client(cfg["GEMINI_API_KEY"])
-        resp = client.models.generate_content(
-            model=cfg["GEMINI_MODEL"],
-            contents=f"Tarefa: {title}\n\nPrévia do resultado:\n{result[:500]}",
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "Escreva UMA frase curta e casual (como a Helena) avisando que "
-                    "terminou a tarefa. Sem aspas. Responda só a frase."
-                )
-            ),
+        text = llm.generate_text(
+            "Escreva UMA frase curta e casual (como a Helena) avisando que "
+            "terminou a tarefa. Sem aspas. Responda só a frase.",
+            f"Tarefa: {title}\n\nPrévia do resultado:\n{result[:500]}",
         )
-        return (resp.text or "").strip() or f"Terminei: {title}"
+        return text or f"Terminei: {title}"
     except Exception:  # noqa: BLE001
         return f"Terminei: {title}"
 
