@@ -1,8 +1,10 @@
 # Helena — Servidor
 
-Backend da **Helena**, uma assistente pessoal com IA (Flask + SQLite + Gemini).
-Este repositório é **só o servidor** (a API que a IA roda). O app Android que
-conversa com ela é um projeto separado — aponte-o para o endereço deste servidor.
+Backend da **Helena**, uma assistente pessoal com IA (Flask + SQLite +
+Gemini ou um modelo local via Ollama). Este repositório é o servidor — a API
+que a IA roda, com CLI de administração e uma página web própria (chat +
+configuração). O app Android é um projeto separado — aponte-o para o
+endereço deste servidor.
 
 O servidor foi feito para rodar num computador/VPS sempre ligado.
 
@@ -13,7 +15,11 @@ O servidor foi feito para rodar num computador/VPS sempre ligado.
 - **Linux, macOS ou Windows**, com `git`.
 - Nada mais: o instalador cuida do resto (instala o [uv](https://astral.sh/uv),
   que provisiona automaticamente o Python 3.14 e as dependências).
-- Uma **chave da API do Google Gemini** — gratuita em <https://ai.google.dev/>.
+- Um cérebro pra IA — escolha um no `helena setup`:
+  - **Gemini** (nuvem): uma **chave da API do Google Gemini** — gratuita em
+    <https://ai.google.dev/>; ou
+  - **Modelo local** (Ollama): roda na sua própria máquina, sem chave nem
+    custo de API — o setup instala o Ollama e baixa o modelo pra você.
 
 ## Instalação
 
@@ -43,8 +49,31 @@ cria o `.env`. No restante deste guia, onde estiver `./helena`, no Windows use
 ./helena setup
 ```
 
-Pergunta a **chave do Gemini** e a **porta** (default 5000), e gera um segredo
-JWT automaticamente. Para também escolher modelos/voz: `./helena setup --advanced`.
+Interativo (menus de seta — funciona em qualquer terminal, cai pra digitar
+número se o terminal não suportar): primeiro pergunta **qual cérebro** usar —
+
+- **Gemini**: pede a chave da API.
+- **Modelo local (Ollama)**: instala o Ollama se faltar (pede confirmação),
+  detecta RAM/CPU/GPU da sua máquina e mostra um catálogo de modelos com
+  recomendação colorida (🟢 adequado / 🟡 roda mas custa desempenho / 🔴 não
+  recomendado pra essa máquina), baixa o escolhido e testa uma geração de
+  verdade antes de confirmar — pra nunca deixar configurado algo que não
+  funciona.
+
+Depois pergunta a **porta** (default 5000) e gera um segredo JWT
+automaticamente. Pra também escolher modelos/voz do Gemini: `./helena setup --advanced`.
+
+Trocar de cérebro depois, sem rodar o setup inteiro de novo:
+
+```bash
+./helena provider              # mostra o atual + menu pra trocar
+./helena provider gemini       # troca direto
+./helena provider ollama       # troca direto (pede modelo se ainda não tiver um)
+./helena models list           # catálogo colorido + o que já foi baixado
+./helena models use <nome>     # baixa (se preciso) e ativa um modelo
+./helena models pull <nome>    # só baixa
+./helena models remove <nome>  # remove um modelo baixado
+```
 
 Sem interação:
 
@@ -53,6 +82,8 @@ Sem interação:
 ./helena config list          # mostra tudo (segredos mascarados)
 ./helena config get HELENA_PORT
 ```
+
+Tudo isso também dá pra fazer pela [página web](#página-web-chat--configuração).
 
 ## Uso
 
@@ -66,9 +97,31 @@ Sem interação:
 ./helena doctor     # checa pré-requisitos e estado
 ```
 
+Qualquer subcomando que espera uma ação (`users`, `service`, `update`,
+`autoupdate`, `config`, `models`, `provider`...) mostra um menu de setas
+quando chamado sem argumento — digitar o comando exato continua funcionando
+igual, é só mais uma forma de usar.
+
 Depois de `start`, a API fica em `http://localhost:<porta>` (e na rede local
 pelo IP da máquina, já que o bind é `0.0.0.0` por padrão). Configure esse
-endereço no app Android.
+endereço no app Android, ou abra direto no navegador (veja abaixo).
+
+## Página web (chat + configuração)
+
+Abra `http://localhost:<porta>/` (ou pelo IP da máquina, na rede local) —
+login com a mesma conta do app, sem instalar nada:
+
+- **Chat**: conversa com a Helena, igual ao app/`helena chat`.
+- **Configurações**: tudo que o CLI configura — provider (Gemini/Ollama),
+  chave do Gemini, modelos, catálogo colorido do Ollama (baixar/trocar/testar
+  direto pela página), porta/host, notificação de desktop, federação. O botão
+  **"Salvar e reiniciar"** aplica e reinicia o servidor sozinho (funciona com
+  `helena start` ou como serviço instalado — em `helena test`, modo dev sem
+  pidfile, use `helena restart` no terminal).
+
+Mesmo nível de acesso do chat: qualquer usuário logado pode ver/mudar a
+configuração (segredos como a chave do Gemini nunca voltam em texto puro pro
+navegador, só mascarados).
 
 ## Rodar junto do sistema (serviço)
 
@@ -135,13 +188,38 @@ por usuário**, definidos pelo CLI:
   - ⚠️ Só funciona com o servidor rodando **na sessão gráfica logada** (não em
     VPS/headless/SSH — lá não há tela).
 
+## Modelo local (Ollama)
+
+Com `LLM_PROVIDER=ollama`, o cérebro da Helena (chat, tarefas em segundo
+plano, resumo de conversa, memória de longo prazo) roda 100% local via
+[Ollama](https://ollama.com) — sem chave, sem custo de API, sem depender de
+internet pro "pensar". Configurado pelo `helena setup` ou `helena
+provider`/`models` (veja [Configuração](#configuração)).
+
+**Limitações** (o Ollama não faz — ficam indisponíveis em modo local, sem
+quebrar o resto): geração de imagem, TTS (voz) e descrição de foto/áudio
+enviados continuam exigindo `GEMINI_API_KEY` configurada também, mesmo com
+`LLM_PROVIDER=ollama`. Visão (a IA "ver" a tela numa tarefa de desktop) é
+melhor-esforço — só funciona se o modelo escolhido for multimodal E suportar
+tools ao mesmo tempo, combinação rara. O catálogo (`helena models list`) só
+lista modelos com suporte a tool-calling confirmado — sem isso a Helena não
+consegue usar nenhuma ferramenta (lembrete, shell, etc.).
+
+O daemon (`ollama serve`) sobe e desce **junto do ciclo de vida da Helena**
+automaticamente — seja rodando via `helena start` ou como serviço instalado
+— sem precisar geri-lo à parte. Se você já roda o Ollama por conta própria
+(outro serviço, outro app usando ele também), desligue esse acoplamento com
+`OLLAMA_MANAGED=0` — a Helena só passa a se conectar ao que já estiver
+rodando em `OLLAMA_HOST`, nunca sobe nem derruba nada.
+
 ## Variáveis de ambiente
 
 Ficam no `.env` (não versionado). Veja `.env.example`.
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `GEMINI_API_KEY` | — | **Obrigatória.** Chave da API do Gemini. |
+| `LLM_PROVIDER` | `gemini` | Cérebro da Helena: `gemini` ou `ollama`. |
+| `GEMINI_API_KEY` | — | Chave da API do Gemini. Obrigatória se `LLM_PROVIDER=gemini`; recomendada mesmo em `ollama` (imagem/TTS/mídia). |
 | `JWT_SECRET_KEY` | (gerado) | Segredo para assinar tokens. Gerado pelo `setup`. |
 | `HELENA_PORT` | `5000` | Porta HTTP. |
 | `HELENA_HOST` | `0.0.0.0` | Interface de bind. |
@@ -149,9 +227,14 @@ Ficam no `.env` (não versionado). Veja `.env.example`.
 | `GEMINI_IMAGE_MODEL` | `gemini-2.5-flash-image` | Geração de imagem. |
 | `GEMINI_TTS_MODEL` | `gemini-2.5-flash-preview-tts` | TTS (voz). |
 | `GEMINI_TTS_VOICE` | `Kore` | Voz do TTS. |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Endereço do daemon Ollama. |
+| `OLLAMA_MODEL` | — | Modelo local ativo (tag do `ollama pull`, ex.: `qwen2.5:7b`). |
+| `OLLAMA_MANAGED` | `1` | Se a Helena sobe/derruba o `ollama serve` junto do próprio ciclo de vida (`0` desliga). |
+| `OLLAMA_REQUEST_TIMEOUT_SECONDS` | `300` | Timeout da chamada HTTP ao Ollama (modelos locais podem ser lentos). |
 | `HELENA_DATA_DIR` | `./data` | Diretório de dados (SQLite). |
 | `HELENA_MEDIA_DIR` | `./data/media` | Diretório de mídia. |
 | `HELENA_DESKTOP_NOTIFICATIONS` | `1` | Notificação nativa do SO onde o servidor roda (`0` desliga). |
+| `HELENA_ENV_FILE` | `<raiz>/.env` | Qual `.env` o CLI/página de configuração lê e escreve. Normalmente não precisa mexer — existe pra isolar os testes automatizados do `.env` real. |
 
 ## Notificações no desktop
 
