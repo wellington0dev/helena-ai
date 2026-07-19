@@ -8,6 +8,9 @@ endereço deste servidor.
 
 O servidor foi feito para rodar num computador/VPS sempre ligado.
 
+Quer construir seu próprio cliente (outro app, script, integração)? Veja a
+[referência completa da API](API.md) — rotas, autenticação, WebSocket.
+
 ---
 
 ## Requisitos
