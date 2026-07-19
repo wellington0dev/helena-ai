@@ -70,9 +70,18 @@ Perfil da conversa (estilo "info do contato"). `200` →
 Envia uma mensagem e **espera o turno inteiro do agente terminar** antes de
 responder (pode levar dezenas de segundos se disparar tool-calling/pesquisa —
 use um timeout de cliente generoso, 60-180s). Body: `{"content": str,
-"media_url": str (opcional), "media_type": str (opcional), "media_meta": dict (opcional)}`
+"media_url": str (opcional), "media_type": str (opcional), "media_meta": dict (opcional),
+"cwd": str (opcional)}`
 — pelo menos `content` ou `media_url`. Pra anexar mídia, faça
 `POST /media/upload` primeiro e use o `media_url`/`media_type` devolvidos.
+
+- `cwd` (opcional): o diretório de trabalho atual do cliente — de onde a Helena
+  "está sendo chamada". Se o usuário tiver controle de shell
+  (`principal`/`fullcontrol`) **e** o caminho existir como pasta no servidor, ele
+  vira o diretório onde a Helena executa comandos e edita/cria código naquele
+  turno (e persiste até mudar). Ignorado (silenciosamente) para os demais
+  usuários ou caminho inexistente. É assim que o `helena chat` informa o diretório
+  do terminal a cada mensagem; clientes que não têm um cwd relevante podem omitir.
 
 - `400` mensagem vazia (sem content nem mídia).
 - `403` mídia de outro usuário; `404` mídia não encontrada.

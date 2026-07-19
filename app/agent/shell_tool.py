@@ -39,10 +39,11 @@ EXECUTAR_SHELL_DECL = types.FunctionDeclaration(
         "Executa UM comando no shell/terminal do computador onde você roda "
         "(veja o SO no contexto do dispositivo). Use para controlar a máquina a "
         "pedido do usuário: listar/abrir arquivos, rodar programas, checar o "
-        "sistema, etc. Por segurança, o usuário PRECISA autorizar cada comando "
-        "novo pelo chat — você NÃO deve assumir que rodou até receber a saída. "
-        "Passe UM comando por chamada; encadeie com && se necessário. Adapte a "
-        "sintaxe ao sistema operacional do dispositivo."
+        "sistema, etc. Roda no seu DIRETÓRIO DE TRABALHO atual (veja o contexto); "
+        "use mudar_diretorio para navegar de forma persistente. Por segurança, o "
+        "usuário PRECISA autorizar cada comando novo pelo chat — você NÃO deve "
+        "assumir que rodou até receber a saída. Passe UM comando por chamada; "
+        "encadeie com && se necessário. Adapte a sintaxe ao sistema operacional."
     ),
     parameters=types.Schema(
         type=types.Type.OBJECT,
@@ -59,6 +60,84 @@ EXECUTAR_SHELL_DECL = types.FunctionDeclaration(
         required=["comando"],
     ),
 )
+
+
+MUDAR_DIRETORIO_DECL = types.FunctionDeclaration(
+    name="mudar_diretorio",
+    description=(
+        "Muda o DIRETÓRIO DE TRABALHO atual, de forma persistente — todos os "
+        "próximos comandos (executar_shell) e edições de código rodarão a partir "
+        "dele até você mudar de novo. Use ao entrar num projeto/pasta para "
+        "trabalhar. Aceita caminho absoluto, relativo ao diretório atual, ou '~'. "
+        "Não precisa de aprovação (só navega, não executa nada)."
+    ),
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "caminho": types.Schema(
+                type=types.Type.STRING,
+                description="Diretório de destino (absoluto, relativo ao atual, ou '~').",
+            ),
+        },
+        required=["caminho"],
+    ),
+)
+
+
+# --------------------------------------------------------------------------- #
+# Diretório de trabalho (onde o shell roda e a Helena edita/cria código)
+# --------------------------------------------------------------------------- #
+
+def resolve_workdir(user_id: int) -> str:
+    """Diretório de trabalho efetivo do usuário: `working_dir` se ainda existir
+    como pasta, senão o home (fallback seguro). Nunca levanta."""
+    user = db.session.get(User, user_id)
+    wd = user.working_dir if user else None
+    if wd:
+        try:
+            p = Path(wd)
+            if p.is_dir():
+                return str(p)
+        except OSError:
+            pass
+    return str(Path.home())
+
+
+def set_workdir(user_id: int, caminho: str) -> dict:
+    """Muda o diretório de trabalho persistido, resolvendo relativo ao atual.
+    Valida que o destino existe e é uma pasta. Devolve o resultado p/ o modelo."""
+    raw = (caminho or "").strip()
+    if not raw:
+        return {"ok": False, "error": "caminho vazio"}
+    base = Path(resolve_workdir(user_id))
+    try:
+        target = Path(raw).expanduser()
+        if not target.is_absolute():
+            target = base / target
+        target = target.resolve()
+    except (OSError, RuntimeError) as exc:
+        return {"ok": False, "error": f"caminho inválido: {exc}"}
+    if not target.is_dir():
+        return {"ok": False, "error": f"não é uma pasta existente: {target}"}
+    with write_lock:
+        user = db.session.get(User, user_id)
+        if user is None:
+            return {"ok": False, "error": "usuário não encontrado"}
+        user.working_dir = str(target)
+        db.session.commit()
+    return {"ok": True, "working_dir": str(target)}
+
+
+def mudar_diretorio(user_id: int, args: dict) -> dict:
+    if shell_level(user_id) is None:
+        return {
+            "ok": False,
+            "error": (
+                "Este usuário não pode navegar/controlar o computador. "
+                "Só o usuário principal pode."
+            ),
+        }
+    return set_workdir(user_id, args.get("caminho") or args.get("path") or "")
 
 
 # --------------------------------------------------------------------------- #
@@ -83,14 +162,18 @@ def _cap(text: str, limit: int) -> str:
     return text or ""
 
 
-def run_shell(command: str) -> dict:
-    """Roda `command` no shell com os rails de segurança. Devolve
-    {exit_code, stdout, stderr, timeout}. Nunca levanta."""
+def run_shell(command: str, cwd: str | None = None) -> dict:
+    """Roda `command` no shell com os rails de segurança. `cwd` é o diretório de
+    trabalho (default: home). Devolve {exit_code, stdout, stderr, timeout}.
+    Nunca levanta."""
     cfg = current_app.config
     timeout = cfg["SHELL_TIMEOUT_SECONDS"]
     max_out = cfg["SHELL_MAX_OUTPUT"]
+    workdir = cwd or str(Path.home())
+    if not Path(workdir).is_dir():  # pasta pode ter sumido; cai no home
+        workdir = str(Path.home())
     kwargs = dict(
-        cwd=str(Path.home()),
+        cwd=workdir,
         stdin=subprocess.DEVNULL,  # não trava em prompts (sudo/apt)
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -161,7 +244,7 @@ def execute_recorded(rec: ShellCommand) -> int:
     """Executa um ShellCommand já claimado (status running) e persiste a saída.
     Atualiza status para done/error. Devolve o id da mensagem de saída (para o
     agente reagir a ela no re-invoke)."""
-    result = run_shell(rec.command)
+    result = run_shell(rec.command, resolve_workdir(rec.user_id))
     out_id = _persist_output(rec.user_id, rec.command, result)
     from app import audit
     audit.record(rec.user_id, "shell", rec.command, result["exit_code"])
@@ -203,7 +286,7 @@ def check_budget() -> str | None:
 
 def run_direct(user_id: int, command: str) -> dict:
     """Executa JÁ (sem card) e persiste a saída no chat + trilha de auditoria."""
-    result = run_shell(command)
+    result = run_shell(command, resolve_workdir(user_id))
     _persist_output(user_id, command, result)
     from app import audit
     audit.record(user_id, "shell", command, result["exit_code"])

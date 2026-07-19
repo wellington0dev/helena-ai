@@ -14,8 +14,12 @@ from app.agent.desktop_tools import (
     DESKTOP_INPUT_DECLS, DESKTOP_VIEW_DECLS, DESKTOP_HANDLERS,
 )
 from app.agent.federation_tools import FEDERATION_INITIATE_DECLS, FEDERATION_INITIATE_HANDLERS
+from app.agent.command_library import BUSCAR_COMANDO_DECL, buscar_comando
+from app.agent.project_memory import PROJETO_DECL, projeto
 from app.agent.sandbox import EXECUTAR_CODIGO_DECL, executar_codigo
-from app.agent.shell_tool import EXECUTAR_SHELL_DECL, executar_shell, shell_level
+from app.agent.shell_tool import (
+    EXECUTAR_SHELL_DECL, MUDAR_DIRETORIO_DECL, executar_shell, mudar_diretorio, shell_level,
+)
 from app.extensions import db, write_lock
 from app.models import AiNote, Peer, UserProfile
 
@@ -276,7 +280,10 @@ INICIAR_TAREFA_COMPUTADOR_DECL = types.FunctionDeclaration(
 # Tiers de tools por nível de permissão (menos tokens + o modelo não recebe o
 # que não pode usar): BASE (todos) + PRINCIPAL (ver tela/shell/executar) + FULL (mouse/teclado).
 _BASE_DECLS = _CHAT_BASE_DECLS + AUTOMATION_MANAGE_DECLS + [EXECUTAR_CODIGO_DECL]
-_PRINCIPAL_DECLS = [EXECUTAR_SHELL_DECL, *DESKTOP_VIEW_DECLS, *AUTOMATION_EXEC_DECLS]
+_PRINCIPAL_DECLS = [
+    EXECUTAR_SHELL_DECL, MUDAR_DIRETORIO_DECL, BUSCAR_COMANDO_DECL, PROJETO_DECL,
+    *DESKTOP_VIEW_DECLS, *AUTOMATION_EXEC_DECLS,
+]
 _FULL_DECLS = [*DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL]
 
 # conjunto completo (default / retrocompat p/ quem não passa user)
@@ -398,6 +405,9 @@ _HANDLERS = {
     "create_note": _create_note,
     "update_user_profile": _update_user_profile,
     "executar_shell": executar_shell,
+    "mudar_diretorio": mudar_diretorio,
+    "buscar_comando": buscar_comando,
+    "projeto": projeto,
     "executar_codigo": executar_codigo,
     **DESKTOP_HANDLERS,
     **AUTOMATION_HANDLERS,

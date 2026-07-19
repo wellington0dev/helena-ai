@@ -118,6 +118,9 @@ def _ensure_columns() -> None:
     if "name" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN name TEXT"))
         db.session.commit()
+    if "working_dir" not in cols:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN working_dir TEXT"))
+        db.session.commit()
     rcols = {c["name"] for c in insp.get_columns("reminders")}
     if "recurrence" not in rcols:
         db.session.execute(text("ALTER TABLE reminders ADD COLUMN recurrence TEXT"))

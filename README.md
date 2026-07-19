@@ -182,7 +182,9 @@ por usuário**, definidos pelo CLI:
 
 - **Shell**: um usuário `principal` pede um comando → aparece um card no chat com
   **Permitir / Negar / Permitir sempre**. Em `fullcontrol`, roda direto (a saída
-  ainda aparece no chat). Rails: timeout, stdin fechado, `cwd`=home, log de auditoria.
+  ainda aparece no chat). Rails: timeout, stdin fechado, log de auditoria, e
+  `cwd` = o **diretório de trabalho atual** (veja [Trabalho em código](#trabalho-em-código-diretório-comandos-memória-de-projeto);
+  cai pro home se nenhum estiver definido).
 - **Desktop (tela/mouse/teclado)**: `capturar_tela` (a IA VÊ a tela) exige
   `principal`; mover/clicar/digitar exigem `fullcontrol`.
   - **Windows / Linux-X11 / macOS**: funciona direto (pyautogui/mss, via `uv sync`).
@@ -190,6 +192,36 @@ por usuário**, definidos pelo CLI:
     configura o `/dev/uinput` (relogue depois; deixe o `ydotoold` rodando p/ o mouse).
   - ⚠️ Só funciona com o servidor rodando **na sessão gráfica logada** (não em
     VPS/headless/SSH — lá não há tela).
+
+## Trabalho em código (diretório, comandos, memória de projeto)
+
+Para quem tem controle de shell (`principal`/`fullcontrol`), a Helena ganha
+capacidades de assistente de código. Elas são **subordinadas ao papel de
+assistente pessoal** — acionadas só quando o pedido é sobre código, sem mudar o
+tom dela — e se apoiam umas nas outras:
+
+- **Diretório de trabalho**: o `helena chat` envia o diretório do seu terminal a
+  cada mensagem, então a Helena já trabalha de onde você está — comandos de shell
+  e edições de código rodam ali (não mais sempre no home). Dentro da conversa ela
+  navega de forma persistente com a ferramenta `mudar_diretorio`, e o diretório
+  atual aparece no contexto dela.
+- **Biblioteca de comandos**: um catálogo interno de comandos de terminal (o que
+  fazem, flags úteis e como combiná-los com pipes), que ela consulta **sob
+  demanda** (ferramenta `buscar_comando`) em vez de carregar tudo no contexto —
+  já filtrado pelo sistema operacional da máquina. Fica hardcoded em
+  `app/agent/command_library.py`.
+- **Memória de projeto (`.helena/`)**: antes de criar ou modificar um arquivo, a
+  Helena decide se o diretório é um projeto de programação (código-fonte, `.git`,
+  ou manifestos como `package.json`/`pyproject.toml`/`Cargo.toml`/`go.mod`). Se
+  for, ela mantém uma pasta `.helena/` na raiz do projeto com o que aprendeu —
+  linguagem, framework, comandos, git, estrutura e contexto por arquivo —
+  **navegável em JSON** (ferramenta `projeto`: `mapa`/`ler`/`buscar`/`salvar`)
+  pra retomar o trabalho sem reescanear tudo e sem inchar o contexto em tokens.
+  É **local por padrão**: a Helena escreve um `.helena/.gitignore` com `*`, então
+  nada dessa memória entra no git do seu projeto.
+
+Nada disso aparece para usuários `normal` — as ferramentas só são oferecidas ao
+modelo quando o usuário tem o nível de permissão necessário.
 
 ## Modelo local (Ollama)
 

@@ -15,6 +15,28 @@ def _current_user_id() -> int:
     return int(get_jwt_identity())
 
 
+def _apply_cwd(user_id: int, cwd) -> None:
+    """Grava o diretório de trabalho vindo do CLI, se válido. Best-effort:
+    nunca derruba o envio da mensagem por causa disso."""
+    if not cwd or not isinstance(cwd, str):
+        return
+    try:
+        from pathlib import Path
+
+        from app.agent.shell_tool import shell_level
+        from app.models import User
+
+        if shell_level(user_id) is None or not Path(cwd).is_dir():
+            return
+        user = db.session.get(User, user_id)
+        if user is not None and user.working_dir != cwd:
+            with write_lock:
+                user.working_dir = cwd
+                db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+
+
 @chat_bp.get("")
 @jwt_required()
 def list_messages():
@@ -74,6 +96,11 @@ def send_message():
 
     if not content and not media_url:
         return jsonify(error="mensagem vazia (sem content nem mídia)"), 400
+
+    # O CLI (`helena chat`) manda o diretório do terminal do usuário: é a verdade
+    # base de onde a Helena está sendo chamada. Só o usuário principal pode
+    # controlar a máquina, então só pra ele isso vale — e só se a pasta existir.
+    _apply_cwd(user_id, data.get("cwd"))
 
     # valida a mídia: precisa existir e pertencer ao usuário
     media_meta = None

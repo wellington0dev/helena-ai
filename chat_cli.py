@@ -104,11 +104,17 @@ def api_register(base_url, name, email, password) -> dict:
 
 
 def api_send(base_url, token, content) -> dict:
+    # manda o diretório atual do terminal: é de onde a Helena está sendo chamada,
+    # então ela edita/cria código e roda comandos já a partir daqui.
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = None
     try:
         r = requests.post(
             f"{base_url}/messages",
             headers={"Authorization": f"Bearer {token}"},
-            json={"content": content},
+            json={"content": content, "cwd": cwd},
             timeout=SEND_TIMEOUT,
         )
     except requests.Timeout:

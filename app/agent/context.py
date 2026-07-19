@@ -68,6 +68,24 @@ def build_system_instruction(user_id: int) -> str:
     # Dispositivo onde a Helena roda (útil p/ tools que controlam o computador)
     parts.append("## Dispositivo onde você está rodando\n" + device_context())
 
+    # Diretório de trabalho atual: onde executar_shell roda e onde ela edita/cria
+    # código. Vem do cwd que o CLI enviou ou do último mudar_diretorio; senão home.
+    from app.agent.shell_tool import resolve_workdir, shell_level
+
+    if shell_level(user_id) is not None:
+        parts.append(
+            "## Diretório de trabalho atual\n"
+            f"{resolve_workdir(user_id)}\n"
+            "Todos os comandos (executar_shell) e edições de código rodam a partir "
+            "daqui. Use a tool mudar_diretorio para navegar de forma persistente."
+        )
+        # Se o projeto atual tem memória (.helena/), lembra a Helena de usá-la.
+        from app.agent.project_memory import context_hint
+
+        hint = context_hint(user_id)
+        if hint:
+            parts.append(hint)
+
     # Comandos e listas salvos que a Helena pode executar por nome
     autos = _saved_automations(user_id)
     if autos:

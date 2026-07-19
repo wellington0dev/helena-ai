@@ -33,6 +33,10 @@ class User(db.Model):
     shell_full_control = db.Column(db.Boolean, default=False, nullable=False)
     # navegador preferido pra tool abrir_navegador (id do detect_browsers); None = usa o 1º instalado
     default_browser = db.Column(db.Text, nullable=True)
+    # diretório de trabalho atual da Helena (onde executar_shell roda e onde ela
+    # edita/cria código). O CLI (`helena chat`) envia o cwd do terminal; a Helena
+    # também pode navegar com mudar_diretorio. None = home do usuário.
+    working_dir = db.Column(db.Text, nullable=True)
     # kill-switch de federação: pausa pareamento/envio/recebimento com peers (junto do panic)
     federation_paused = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(UtcDateTime, default=_utcnow, nullable=False)

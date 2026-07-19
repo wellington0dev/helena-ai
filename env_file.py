@@ -7,7 +7,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 def read_env_values(path: Path) -> dict[str, str]:
     """Lê os pares KEY=VALUE ativos (não comentados) de um arquivo .env."""
     vals: dict[str, str] = {}
