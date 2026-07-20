@@ -28,9 +28,20 @@ def _on_connect(auth):
     return True
 
 
+def _to_telegram(user_id: int, messages: list[dict]) -> None:
+    """Espelha mensagens nos chats vinculados do Telegram (best-effort). Import
+    tardio evita ciclo (telegram → commands → realtime)."""
+    try:
+        from app.telegram.delivery import deliver_messages
+        deliver_messages(user_id, messages)
+    except Exception:  # noqa: BLE001 — entrega ao Telegram nunca derruba o emit
+        pass
+
+
 def emit_job_done(user_id: int, message: dict) -> None:
     """Empurra o resultado de um job para o dono (se estiver com o app aberto)."""
     socketio.emit("job_done", {"message": message}, room=str(user_id))
+    _to_telegram(user_id, [message])
 
 
 def emit_new_messages(user_id: int, messages: list[dict]) -> None:
@@ -38,6 +49,7 @@ def emit_new_messages(user_id: int, messages: list[dict]) -> None:
     da notificação (RemoteInput), que não passam pela WebView. O cliente faz
     dedupe por id, então a própria sessão que enviou não duplica."""
     socketio.emit("new_messages", {"messages": messages}, room=str(user_id))
+    _to_telegram(user_id, messages)
 
 
 def emit_job_progress(user_id: int, text: str) -> None:

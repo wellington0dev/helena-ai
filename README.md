@@ -126,6 +126,36 @@ Mesmo nível de acesso do chat: qualquer usuário logado pode ver/mudar a
 configuração (segredos como a chave do Gemini nunca voltam em texto puro pro
 navegador, só mascarados).
 
+## Telegram (a Helena como bot)
+
+A Helena pode virar um **bot completo no Telegram** — todas as funções do chat
+funcionam por lá (texto, áudio, foto, documentos, geração de imagem/áudio/PDF,
+lembretes, jobs em segundo plano e até aprovação de comandos de shell por botões).
+
+1. Crie um bot no **[@BotFather](https://t.me/BotFather)** e copie o token.
+2. Configure o token — pelo CLI ou pela página de configurações:
+   ```bash
+   ./helena config set TELEGRAM_BOT_TOKEN 123456:ABC-DEF...
+   ./helena restart
+   ```
+   (Na página web: card **Telegram** → cole o token → **Salvar e reiniciar**.)
+3. No Telegram, abra seu bot e mande **/login** — ele pede email e senha (a
+   **mesma conta** do app/`helena chat`; a mensagem com a senha é apagada em
+   seguida). Depois é só conversar.
+
+Comandos do bot: `/login`, `/logout`, `/whoami`, `/historico` (espelha as últimas
+mensagens da conversa), `/cancel`, `/help`.
+
+Detalhes:
+- **Sem URL pública**: usa long-polling, funciona atrás de NAT/sem porta aberta.
+- **Histórico único**: a conversa é a mesma em todos os clientes (app, web, CLI,
+  Telegram) — o que você fala num aparece no outro.
+- **Permissões**: o nível da conta vale igual (só o usuário `principal`/
+  `fullcontrol` controla a máquina). Comandos que pedem aprovação aparecem no
+  Telegram com botões **Permitir / Negar / Sempre**.
+- **Lembretes** e resultados de tarefas em segundo plano chegam no Telegram
+  automaticamente (mesmo num servidor headless, sem toast de desktop).
+
 ## Rodar junto do sistema (serviço)
 
 Instala como serviço que sobe sozinho ao logar:
@@ -269,6 +299,8 @@ Ficam no `.env` (não versionado). Veja `.env.example`.
 | `HELENA_DATA_DIR` | `./data` | Diretório de dados (SQLite). |
 | `HELENA_MEDIA_DIR` | `./data/media` | Diretório de mídia. |
 | `HELENA_DESKTOP_NOTIFICATIONS` | `1` | Notificação nativa do SO onde o servidor roda (`0` desliga). |
+| `TELEGRAM_BOT_TOKEN` | — | Token do bot do Telegram (@BotFather). Vazio = bot desligado. Veja [Telegram](#telegram-a-helena-como-bot). |
+| `TELEGRAM_POLL_TIMEOUT` | `50` | Timeout (s) do long-polling do bot do Telegram. |
 | `HELENA_ENV_FILE` | `<raiz>/.env` | Qual `.env` o CLI/página de configuração lê e escreve. Normalmente não precisa mexer — existe pra isolar os testes automatizados do `.env` real. |
 
 ## Notificações no desktop

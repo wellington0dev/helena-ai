@@ -114,6 +114,11 @@ def _ensure_columns() -> None:
     if "working_dir" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN working_dir TEXT"))
         db.session.commit()
+    # federação removida: a coluna órfã `federation_paused` é NOT NULL e, sem o
+    # model preenchê-la, quebraria todo INSERT de usuário novo. Dropa se existir.
+    if "federation_paused" in cols:
+        db.session.execute(text("ALTER TABLE users DROP COLUMN federation_paused"))
+        db.session.commit()
     rcols = {c["name"] for c in insp.get_columns("reminders")}
     if "recurrence" not in rcols:
         db.session.execute(text("ALTER TABLE reminders ADD COLUMN recurrence TEXT"))

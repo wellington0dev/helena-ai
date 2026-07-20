@@ -53,12 +53,23 @@ def _dispatch_one(app, notification_id: int) -> None:
         n = db.session.get(NotificationQueue, notification_id)
         if n is None:
             return
-        title, body = n.title, n.body
+        title, body, ntype, user_id = n.title, n.body, n.type, n.user_id
         db.session.remove()
-    try:
-        notify(title, body)
-    except DesktopNotifyError as exc:
-        app.logger.debug("notificação de desktop não disparou (%s): %s", title, exc)
+
+        # toast nativo do SO (se ligado)
+        if app.config.get("DESKTOP_NOTIFICATIONS_ENABLED", True):
+            try:
+                notify(title, body)
+            except DesktopNotifyError as exc:
+                app.logger.debug("notificação de desktop não disparou (%s): %s", title, exc)
+
+        # Telegram: só lembretes (job_done já vai pelo emit_job_done, evita dobrar)
+        if app.config.get("TELEGRAM_BOT_TOKEN") and ntype == "reminder":
+            try:
+                from app.telegram.delivery import deliver_notification
+                deliver_notification(user_id, title, body)
+            except Exception as exc:  # noqa: BLE001
+                app.logger.debug("telegram: lembrete não entregue: %s", exc)
 
 
 def start_desktop_notifier(app, poll_interval: float = 5.0):
@@ -67,8 +78,10 @@ def start_desktop_notifier(app, poll_interval: float = 5.0):
     global _started
     if _started:
         return
-    if not app.config.get("DESKTOP_NOTIFICATIONS_ENABLED", True):
-        app.logger.info("notificações de desktop desativadas (HELENA_DESKTOP_NOTIFICATIONS=0)")
+    # sobe se HOUVER algum destino: toast de desktop OU bot do Telegram. Assim,
+    # num servidor headless (desktop off) os lembretes ainda chegam no Telegram.
+    if not app.config.get("DESKTOP_NOTIFICATIONS_ENABLED", True) and not app.config.get("TELEGRAM_BOT_TOKEN"):
+        app.logger.info("notificações desativadas (sem desktop nem Telegram)")
         return
     _started = True
 

@@ -85,21 +85,20 @@ def revoke_approval(approval_id: int):
     return jsonify(ok=True), 200
 
 
-@commands_bp.post("/<int:cmd_id>/decision")
-@jwt_required()
-def decide(cmd_id: int):
-    user_id = int(get_jwt_identity())
-    decision = (request.get_json(silent=True) or {}).get("decision")
+def apply_shell_decision(user_id: int, cmd_id: int, decision: str):
+    """Núcleo da decisão de shell, reusável (HTTP e Telegram). Faz o claim
+    atômico, executa/nega, re-invoca o agente e faz o fan-out (emit_new_messages,
+    que também entrega ao Telegram). Devolve (messages|None, error|None, status)."""
     if decision not in ("allow", "deny", "always"):
-        return jsonify(error="decision deve ser allow|deny|always"), 400
+        return None, "decision deve ser allow|deny|always", 400
 
     # claim atômico: só age se ainda pending e do dono
     with write_lock:
         rec = db.session.get(ShellCommand, cmd_id)
         if rec is None or rec.user_id != user_id:
-            return jsonify(error="comando não encontrado"), 404
+            return None, "comando não encontrado", 404
         if rec.status != "pending":
-            return jsonify(error="comando já foi decidido"), 409
+            return None, "comando já foi decidido", 409
         rec.status = "denied" if decision == "deny" else "running"
         rec.decided_at = now_utc()
         db.session.commit()
@@ -119,7 +118,7 @@ def decide(cmd_id: int):
         since_id = shell_tool.execute_recorded(rec)
 
     # re-invoca o agente para a Helena reagir ao resultado/negativa
-    replies = runner.handle_user_turn(user_id, since_id)
+    runner.handle_user_turn(user_id, since_id)
 
     # coleta as mensagens novas desde o pedido (saída + respostas da Helena)
     new_msgs = (
@@ -133,4 +132,15 @@ def decide(cmd_id: int):
     from app.realtime import emit_new_messages
 
     emit_new_messages(user_id, dicts)
-    return jsonify(messages=dicts), 200
+    return dicts, None, 200
+
+
+@commands_bp.post("/<int:cmd_id>/decision")
+@jwt_required()
+def decide(cmd_id: int):
+    user_id = int(get_jwt_identity())
+    decision = (request.get_json(silent=True) or {}).get("decision")
+    messages, error, status = apply_shell_decision(user_id, cmd_id, decision)
+    if error:
+        return jsonify(error=error), status
+    return jsonify(messages=messages), status

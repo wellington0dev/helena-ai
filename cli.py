@@ -48,8 +48,9 @@ ADVANCED_FIELDS = [
     ("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image", "Modelo de geração de imagem"),
     ("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts", "Modelo de TTS (voz)"),
     ("GEMINI_TTS_VOICE", "Kore", "Voz do TTS"),
+    ("TELEGRAM_BOT_TOKEN", "", "Token do bot do Telegram (@BotFather) — vazio desliga o bot"),
 ]
-SECRET_KEYS = {"GEMINI_API_KEY", "JWT_SECRET_KEY"}
+SECRET_KEYS = {"GEMINI_API_KEY", "JWT_SECRET_KEY", "TELEGRAM_BOT_TOKEN"}
 JWT_PLACEHOLDER = "change-me-to-a-long-random-string"
 
 # ---------- saída colorida ----------

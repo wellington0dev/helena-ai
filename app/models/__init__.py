@@ -12,6 +12,7 @@ from app.models.shell_approval import ShellApproval
 from app.models.saved_command import SavedCommand
 from app.models.routine import Routine
 from app.models.audit_entry import AuditEntry
+from app.models.telegram_link import TelegramLink
 
 __all__ = [
     "User",
@@ -27,4 +28,5 @@ __all__ = [
     "SavedCommand",
     "Routine",
     "AuditEntry",
+    "TelegramLink",
 ]

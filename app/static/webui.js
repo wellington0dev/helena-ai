@@ -243,7 +243,7 @@ chatInput.addEventListener("keydown", (e) => {
 const EDITABLE_FIELDS = [
   "LLM_PROVIDER", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_IMAGE_MODEL",
   "GEMINI_TTS_MODEL", "GEMINI_TTS_VOICE", "OLLAMA_HOST", "OLLAMA_MANAGED",
-  "HELENA_PORT", "HELENA_HOST", "HELENA_DESKTOP_NOTIFICATIONS",
+  "HELENA_PORT", "HELENA_HOST", "HELENA_DESKTOP_NOTIFICATIONS", "TELEGRAM_BOT_TOKEN",
 ];
 const INFO_LABELS = {
   JWT_SECRET_KEY: "segredo JWT",
@@ -270,6 +270,9 @@ async function loadSettings() {
     document.getElementById("s-GEMINI_API_KEY").value = "";
     document.getElementById("s-GEMINI_API_KEY").placeholder =
       values.GEMINI_API_KEY ? `configurado (${values.GEMINI_API_KEY}) — em branco não mexe` : "não configurado";
+    document.getElementById("s-TELEGRAM_BOT_TOKEN").value = "";
+    document.getElementById("s-TELEGRAM_BOT_TOKEN").placeholder =
+      values.TELEGRAM_BOT_TOKEN ? `configurado (${values.TELEGRAM_BOT_TOKEN}) — em branco não mexe` : "não configurado";
     ["GEMINI_MODEL", "GEMINI_IMAGE_MODEL", "GEMINI_TTS_MODEL", "GEMINI_TTS_VOICE",
      "OLLAMA_HOST", "HELENA_PORT", "HELENA_HOST"].forEach((key) => {
       document.getElementById(`s-${key}`).value = values[key] || "";
@@ -398,6 +401,7 @@ document.getElementById("save-restart-btn").addEventListener("click", async () =
   });
   if (pendingOllamaModel) body.OLLAMA_MODEL = pendingOllamaModel;
   if (!body.GEMINI_API_KEY) delete body.GEMINI_API_KEY; // em branco = não mexer
+  if (!body.TELEGRAM_BOT_TOKEN) delete body.TELEGRAM_BOT_TOKEN; // idem
 
   const before = (await api("/settings")).values;
   const oldPort = before.HELENA_PORT;

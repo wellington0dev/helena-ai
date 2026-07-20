@@ -99,6 +99,14 @@ class Config:
     # pro app mobile) — desliga com HELENA_DESKTOP_NOTIFICATIONS=0 (ex.: VPS headless)
     DESKTOP_NOTIFICATIONS_ENABLED = os.environ.get("HELENA_DESKTOP_NOTIFICATIONS", "1") != "0"
 
+    # Bot do Telegram (opcional): a Helena vira um cliente completo por lá — login
+    # com email+senha, chat, mídia, jobs, aprovação de shell e lembretes. Usa
+    # long-polling (não precisa de URL pública). Vazio = bot desligado. Configure
+    # com `helena config set TELEGRAM_BOT_TOKEN <token>` (pegue no @BotFather) ou
+    # pela página de configurações. Requer reiniciar o servidor para valer.
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    TELEGRAM_POLL_TIMEOUT = int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "50"))
+
     # Upload: tamanho máximo de arquivo (25 MB)
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024
 
