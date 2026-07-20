@@ -126,7 +126,7 @@ cross-user). `404` se não existir.
 - `GET /account/audit` 🔒 — `?limit=N` (default 100, máx. 500). O que a
   Helena executou na máquina (shell/desktop). `200` → `{"entries": [...]}`.
 - `POST /account/panic` 🔒 — kill switch: revoga `principal`/`fullcontrol` e
-  pausa federação da SUA conta. `200` → `{"ok": true, "message": "..."}`.
+  nega os comandos de shell pendentes da SUA conta. `200` → `{"ok": true, "message": "..."}`.
 - `POST /account/reset-chat` 🔒 — apaga só as mensagens. `200` → `{"ok": true, "action": "reset-chat"}`.
 - `POST /account/reset-context` 🔒 — apaga mensagens + resumo + notas + perfil
   (mantém lembretes). `200` → `{"ok": true, "action": "reset-context"}`.
@@ -209,33 +209,6 @@ tier de permissão extra) e é REST simples:
 - `POST /settings/ollama/test` `{"name" (opcional)}` 🔒 → `{"ok", "detail"}`, testa geração de verdade.
 - `POST /settings/restart` 🔒 → reinicia o servidor (`202`, a conexão cai em seguida — é esperado).
 
-## Federação (Helena-a-Helena)
-
-Avançado — comunicação assinada entre instâncias diferentes da Helena
-(cada uma com seu próprio dono). A maioria dos clientes não precisa disso;
-documentado aqui pra completude.
-
-- `GET /federation/settings` 🔒 → `{"public_url_configured", "paused"}`
-- `POST /federation/resume` 🔒 → sai do modo pânico de federação.
-- `POST /federation/peers/pairing-codes` 🔒 → gera um código pra dar a outra
-  instância parear. `403` se pausado.
-- `POST /federation/peers` 🔒 — `{"code", "base_url"}`, resgata um código de
-  outra instância (pareamento outbound). `502` em falha de rede/protocolo.
-- `GET /federation/peers` 🔒 / `PUT /federation/peers/<id>` 🔒 (`label`,
-  `trust_level` ∈ `confiavel|nao_confiavel|a_averiguar`, `ai_dialogue_enabled`,
-  `ai_can_initiate` — forçado a `false` se `trust_level != confiavel`) /
-  `DELETE /federation/peers/<id>` 🔒.
-- `GET /federation/peers/<id>/messages` 🔒 → histórico com aquele peer.
-- `POST /federation/peers/<id>/messages` 🔒 — `{"body", "reply_to_message_id" (opcional)}`.
-  `502` se a entrega falhar (mensagem fica `status="failed"`, ainda `201`
-  com o objeto pra você ver o status).
-- `POST /federation/pairing/redeem` e `POST /federation/webhook/message` —
-  **rotas públicas server-to-server**, não usam JWT (assinatura HMAC própria)
-  — não chame essas do seu cliente de usuário.
-
-`Peer`: `{"id","link_id","remote_base_url","label","trust_level","ai_dialogue_enabled","ai_can_initiate","created_at"}`.
-`PeerMessage`: `{"id","peer_id","direction","body","status","authored_by","kind","request_id","in_reply_to","verified_request_message_id","created_at"}`.
-
 ## Tempo real (WebSocket)
 
 Socket.IO em `/socket.io` — o servidor **não** serve o arquivo do cliente
@@ -256,8 +229,6 @@ room própria (pelo id) — eventos só chegam pros seus próprios dados.
 | `new_messages` | `{"messages": [Message, ...]}` | Mensagens novas de qualquer origem que não seja o próprio POST síncrono do cliente (ex.: decisão de shell, resposta vinda de notificação) — dedupe pelo `id`. |
 | `job_progress` | `{"text": str}` | Feedback ao vivo de um job em segundo plano (pesquisa/tarefa de desktop) — efêmero, não fica no histórico. |
 | `job_done` | `{"message": Message}` | Job em segundo plano terminou. |
-| `peer_paired` | `{"peer": Peer}` | Um pareamento de federação se concretizou. |
-| `peer_message` | `{"message": PeerMessage}` | Mensagem nova de um peer federado. |
 
 Se seu cliente não quiser lidar com WebSocket, tudo continua funcionando só
 com `POST /messages` (síncrono) + `GET /notifications/pending` (polling

@@ -121,6 +121,37 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
+// ---------- tema ----------
+
+const THEME_KEY = "helena_theme";
+
+function effectiveTheme() {
+  const set = document.documentElement.dataset.theme;
+  if (set === "light" || set === "dark") return set;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function updateThemeIcon() {
+  const btn = document.getElementById("theme-toggle");
+  const dark = effectiveTheme() === "dark";
+  btn.textContent = dark ? "☀️" : "🌙";
+  btn.title = dark ? "Mudar para tema claro" : "Mudar para tema escuro";
+}
+
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+  updateThemeIcon();
+});
+
+// se o usuário nunca escolheu manualmente, segue a troca de tema do SO
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!localStorage.getItem(THEME_KEY)) updateThemeIcon();
+});
+
+updateThemeIcon();
+
 // ---------- chat ----------
 
 function escapeHtml(s) {
@@ -212,7 +243,7 @@ chatInput.addEventListener("keydown", (e) => {
 const EDITABLE_FIELDS = [
   "LLM_PROVIDER", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_IMAGE_MODEL",
   "GEMINI_TTS_MODEL", "GEMINI_TTS_VOICE", "OLLAMA_HOST", "OLLAMA_MANAGED",
-  "HELENA_PORT", "HELENA_HOST", "HELENA_DESKTOP_NOTIFICATIONS", "FEDERATION_PUBLIC_URL",
+  "HELENA_PORT", "HELENA_HOST", "HELENA_DESKTOP_NOTIFICATIONS",
 ];
 const INFO_LABELS = {
   JWT_SECRET_KEY: "segredo JWT",
@@ -240,7 +271,7 @@ async function loadSettings() {
     document.getElementById("s-GEMINI_API_KEY").placeholder =
       values.GEMINI_API_KEY ? `configurado (${values.GEMINI_API_KEY}) — em branco não mexe` : "não configurado";
     ["GEMINI_MODEL", "GEMINI_IMAGE_MODEL", "GEMINI_TTS_MODEL", "GEMINI_TTS_VOICE",
-     "OLLAMA_HOST", "HELENA_PORT", "HELENA_HOST", "FEDERATION_PUBLIC_URL"].forEach((key) => {
+     "OLLAMA_HOST", "HELENA_PORT", "HELENA_HOST"].forEach((key) => {
       document.getElementById(`s-${key}`).value = values[key] || "";
     });
     document.getElementById("s-HELENA_DESKTOP_NOTIFICATIONS").checked = values.HELENA_DESKTOP_NOTIFICATIONS !== "0";

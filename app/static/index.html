@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Helena</title>
 <link rel="stylesheet" href="/static/webui.css">
+<script>
+  /* aplica o tema salvo ANTES de pintar (evita flash na carga) */
+  try {
+    var _t = localStorage.getItem("helena_theme");
+    if (_t === "light" || _t === "dark") document.documentElement.dataset.theme = _t;
+  } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -35,6 +42,7 @@
       <button class="tab-btn" data-tab="settings">Configurações</button>
     </nav>
     <div class="topbar-right">
+      <button id="theme-toggle" class="ghost icon-btn" title="Alternar tema" aria-label="Alternar tema">🌙</button>
       <span id="user-name" class="dim"></span>
       <button id="logout-btn" class="ghost">Sair</button>
     </div>
@@ -112,13 +120,10 @@
       </div>
 
       <div class="card">
-        <h2>Notificações e federação</h2>
+        <h2>Notificações</h2>
         <label class="row">
           <input type="checkbox" id="s-HELENA_DESKTOP_NOTIFICATIONS">
           Notificação nativa no desktop onde o servidor roda
-        </label>
-        <label>URL pública (federação Helena-a-Helena)
-          <input type="text" id="s-FEDERATION_PUBLIC_URL" placeholder="https://sua-instancia.exemplo.ts.net">
         </label>
       </div>
 

@@ -117,7 +117,7 @@ login com a mesma conta do app, sem instalar nada:
 - **Chat**: conversa com a Helena, igual ao app/`helena chat`.
 - **Configurações**: tudo que o CLI configura — provider (Gemini/Ollama),
   chave do Gemini, modelos, catálogo colorido do Ollama (baixar/trocar/testar
-  direto pela página), porta/host, notificação de desktop, federação. O botão
+  direto pela página), porta/host, notificação de desktop. O botão
   **"Salvar e reiniciar"** aplica e reinicia o servidor sozinho (funciona com
   `helena start` ou como serviço instalado — em `helena test`, modo dev sem
   pidfile, use `helena restart` no terminal).
@@ -275,7 +275,7 @@ Ficam no `.env` (não versionado). Veja `.env.example`.
 
 Além da fila que o app Android puxa, o servidor também dispara a notificação
 como **toast nativo do sistema operacional** onde ele está rodando — reminders,
-"terminei sua tarefa", mensagens de peers federados, etc. Só funciona com o
+"terminei sua tarefa", etc. Só funciona com o
 servidor numa sessão gráfica logada (mesma exigência do controle de desktop
 acima); em VPS/headless a tentativa falha silenciosamente. Desliga com
 `HELENA_DESKTOP_NOTIFICATIONS=0`.

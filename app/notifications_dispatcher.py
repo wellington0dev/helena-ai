@@ -5,8 +5,8 @@ app mobile puxar (offline-first).
 Mesmo desenho do poller de jobs (app/jobs/worker.py): thread daemon, transação
 fresca por ciclo, claim atômico sob write_lock para não disparar duas vezes.
 Reusa a MESMA fila (não cria uma nova) — todo tipo de notificação (job_done,
-reminder, peer_message, peer_paired) já passa por NotificationQueue, então um
-único dispatcher cobre todos os pontos de criação sem precisar mexer neles.
+reminder) já passa por NotificationQueue, então um único dispatcher cobre todos
+os pontos de criação sem precisar mexer neles.
 
 Best-effort: se o SO/ambiente não suporta notificação nativa (VPS headless,
 sem notify-send, etc.), a linha é marcada como tentada mesmo assim — não fica

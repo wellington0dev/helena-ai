@@ -95,21 +95,6 @@ class Config:
     SHELL_MAX_OUTPUT = int(os.environ.get("SHELL_MAX_OUTPUT", "16000"))
     MAX_SHELL_PER_TURN = int(os.environ.get("MAX_SHELL_PER_TURN", "5"))
 
-    # Federação Helena-a-Helena (Fase 1: pareamento + transporte assinado)
-    # URL pública desta instância — o QUE o peer chama de volta. Vazio = não
-    # consegue parear como iniciador (ainda pode receber, se já pareado antes).
-    FEDERATION_PUBLIC_URL = os.environ.get("FEDERATION_PUBLIC_URL", "").rstrip("/")
-    FEDERATION_REPLAY_WINDOW_SECONDS = int(os.environ.get("FEDERATION_REPLAY_WINDOW_SECONDS", "300"))
-    FEDERATION_PAIRING_TTL_SECONDS = int(os.environ.get("FEDERATION_PAIRING_TTL_SECONDS", "600"))
-    FEDERATION_HTTP_TIMEOUT_SECONDS = int(os.environ.get("FEDERATION_HTTP_TIMEOUT_SECONDS", "10"))
-    FEDERATION_MAX_AI_TURNS = int(os.environ.get("FEDERATION_MAX_AI_TURNS", "3"))
-    FEDERATION_REPLY_HISTORY_LIMIT = int(os.environ.get("FEDERATION_REPLY_HISTORY_LIMIT", "20"))
-    # Fase 3: throttle da INICIATIVA da IA (contatar um peer por conta
-    # própria) — contador SEPARADO do teto de resposta acima.
-    FEDERATION_AI_INITIATE_COOLDOWN_SECONDS = int(
-        os.environ.get("FEDERATION_AI_INITIATE_COOLDOWN_SECONDS", "3600")
-    )
-
     # Notificação nativa do SO onde o servidor roda (além da notification_queue
     # pro app mobile) — desliga com HELENA_DESKTOP_NOTIFICATIONS=0 (ex.: VPS headless)
     DESKTOP_NOTIFICATIONS_ENABLED = os.environ.get("HELENA_DESKTOP_NOTIFICATIONS", "1") != "0"

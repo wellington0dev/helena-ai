@@ -57,23 +57,6 @@ def start_scheduler(app) -> BackgroundScheduler:
         misfire_grace_time=300,
     )
 
-    from app.federation.cleanup import purge_expired_nonces
-
-    def _federation_nonce_cleanup_job():
-        with app.app_context():
-            n = purge_expired_nonces()
-            if n:
-                app.logger.info("federação: purgou %s nonce(s) expirado(s)", n)
-
-    scheduler.add_job(
-        _federation_nonce_cleanup_job,
-        trigger="interval",
-        minutes=15,
-        id="federation_nonce_cleanup",
-        replace_existing=True,
-        coalesce=True,
-        misfire_grace_time=300,
-    )
     scheduler.start()
     _scheduler = scheduler
     return scheduler

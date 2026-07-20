@@ -8,7 +8,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app.extensions import db, write_lock
 from app.models import (
     AiNote, AuditEntry, ConversationSummary, Job, Message, NotificationQueue,
-    PairingCode, Peer, PeerMessage, Reminder, Routine, SavedCommand,
+    Reminder, Routine, SavedCommand,
     ShellApproval, ShellCommand, User, UserProfile,
 )
 
@@ -143,7 +143,6 @@ def panic():
         if user is not None:
             user.is_principal = False
             user.shell_full_control = False
-            user.federation_paused = True
         db.session.query(ShellCommand).filter_by(user_id=uid, status="pending").update(
             {ShellCommand.status: "denied"}, synchronize_session=False
         )
@@ -189,7 +188,6 @@ def wipe():
             Message, ConversationSummary, AiNote, UserProfile,
             Reminder, Job, NotificationQueue, ShellCommand, ShellApproval,
             SavedCommand, Routine, AuditEntry,
-            Peer, PeerMessage, PairingCode,
         ):
             _delete_where(model, uid)
         if delete_account:

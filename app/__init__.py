@@ -55,7 +55,6 @@ def create_app(config_object: type = Config) -> Flask:
     from app.blueprints.auth import auth_bp
     from app.blueprints.chat import chat_bp
     from app.blueprints.commands import commands_bp
-    from app.blueprints.federation import federation_bp
     from app.blueprints.library import library_bp
     from app.blueprints.media import media_bp
     from app.blueprints.reminders import reminders_bp
@@ -68,7 +67,6 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(account_bp)
     app.register_blueprint(commands_bp)
     app.register_blueprint(library_bp)
-    app.register_blueprint(federation_bp)
     app.register_blueprint(settings_bp)
 
     with app.app_context():
@@ -110,11 +108,6 @@ def _ensure_columns() -> None:
     if "default_browser" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN default_browser TEXT"))
         db.session.commit()
-    if "federation_paused" not in cols:
-        db.session.execute(
-            text("ALTER TABLE users ADD COLUMN federation_paused BOOLEAN NOT NULL DEFAULT 0")
-        )
-        db.session.commit()
     if "name" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN name TEXT"))
         db.session.commit()
@@ -135,17 +128,6 @@ def _ensure_columns() -> None:
             if col not in rtcols:
                 db.session.execute(text(ddl))
                 db.session.commit()
-    if "peers" in insp.get_table_names():
-        pcols = {c["name"] for c in insp.get_columns("peers")}
-        for col, ddl in (
-            ("ai_dialogue_enabled", "ALTER TABLE peers ADD COLUMN ai_dialogue_enabled BOOLEAN NOT NULL DEFAULT 0"),
-            ("ai_turn_streak", "ALTER TABLE peers ADD COLUMN ai_turn_streak INTEGER NOT NULL DEFAULT 0"),
-            ("ai_can_initiate", "ALTER TABLE peers ADD COLUMN ai_can_initiate BOOLEAN NOT NULL DEFAULT 0"),
-            ("ai_initiate_last_at", "ALTER TABLE peers ADD COLUMN ai_initiate_last_at DATETIME"),
-        ):
-            if col not in pcols:
-                db.session.execute(text(ddl))
-                db.session.commit()
     if "notification_queue" in insp.get_table_names():
         nqcols = {c["name"] for c in insp.get_columns("notification_queue")}
         if "desktop_notified" not in nqcols:
@@ -153,15 +135,3 @@ def _ensure_columns() -> None:
                 text("ALTER TABLE notification_queue ADD COLUMN desktop_notified BOOLEAN NOT NULL DEFAULT 0")
             )
             db.session.commit()
-    if "peer_messages" in insp.get_table_names():
-        pmcols = {c["name"] for c in insp.get_columns("peer_messages")}
-        for col, ddl in (
-            ("authored_by", "ALTER TABLE peer_messages ADD COLUMN authored_by TEXT NOT NULL DEFAULT 'human'"),
-            ("kind", "ALTER TABLE peer_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'"),
-            ("request_id", "ALTER TABLE peer_messages ADD COLUMN request_id TEXT"),
-            ("in_reply_to", "ALTER TABLE peer_messages ADD COLUMN in_reply_to TEXT"),
-            ("verified_request_message_id", "ALTER TABLE peer_messages ADD COLUMN verified_request_message_id INTEGER"),
-        ):
-            if col not in pmcols:
-                db.session.execute(text(ddl))
-                db.session.commit()

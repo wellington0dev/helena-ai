@@ -12,10 +12,6 @@ from app.models.shell_approval import ShellApproval
 from app.models.saved_command import SavedCommand
 from app.models.routine import Routine
 from app.models.audit_entry import AuditEntry
-from app.models.peer import Peer
-from app.models.peer_message import PeerMessage
-from app.models.pairing_code import PairingCode
-from app.models.peer_nonce import PeerNonce
 
 __all__ = [
     "User",
@@ -31,8 +27,4 @@ __all__ = [
     "SavedCommand",
     "Routine",
     "AuditEntry",
-    "Peer",
-    "PeerMessage",
-    "PairingCode",
-    "PeerNonce",
 ]

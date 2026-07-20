@@ -13,7 +13,6 @@ from app.agent.automations_tools import (
 from app.agent.desktop_tools import (
     DESKTOP_INPUT_DECLS, DESKTOP_VIEW_DECLS, DESKTOP_HANDLERS,
 )
-from app.agent.federation_tools import FEDERATION_INITIATE_DECLS, FEDERATION_INITIATE_HANDLERS
 from app.agent.command_library import BUSCAR_COMANDO_DECL, buscar_comando
 from app.agent.project_memory import PROJETO_DECL, projeto
 from app.agent.sandbox import EXECUTAR_CODIGO_DECL, executar_codigo
@@ -21,7 +20,7 @@ from app.agent.shell_tool import (
     EXECUTAR_SHELL_DECL, MUDAR_DIRETORIO_DECL, executar_shell, mudar_diretorio, shell_level,
 )
 from app.extensions import db, write_lock
-from app.models import AiNote, Peer, UserProfile
+from app.models import AiNote, UserProfile
 
 # --------------------------------------------------------------------------- #
 # Schemas declarados ao Gemini
@@ -288,7 +287,7 @@ _FULL_DECLS = [*DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL]
 
 # conjunto completo (default / retrocompat p/ quem não passa user)
 TOOL_DECLARATIONS = types.Tool(
-    function_declarations=_BASE_DECLS + _PRINCIPAL_DECLS + _FULL_DECLS + FEDERATION_INITIATE_DECLS
+    function_declarations=_BASE_DECLS + _PRINCIPAL_DECLS + _FULL_DECLS
 )
 
 
@@ -307,13 +306,6 @@ def build_tool_declarations(user_id: int, provider: str = "gemini") -> types.Too
         decls += _PRINCIPAL_DECLS
     if level == "full":
         decls += _FULL_DECLS
-    # Fase 3: só expõe as tools de federação se o usuário tiver ao menos um
-    # peer pareado — evita poluir o prompt/tentar o modelo a chamar com
-    # peer_id inventado quando não há nada com quem falar. O gate de
-    # confiança/consentimento de verdade (ai_can_initiate + trust_level)
-    # acontece em runtime no handler, não aqui.
-    if db.session.query(Peer).filter_by(user_id=user_id).first() is not None:
-        decls += FEDERATION_INITIATE_DECLS
     if provider != "gemini":
         decls = [d for d in decls if d.name not in _GEMINI_ONLY_TOOL_NAMES]
     return types.Tool(function_declarations=decls)
@@ -411,7 +403,6 @@ _HANDLERS = {
     "executar_codigo": executar_codigo,
     **DESKTOP_HANDLERS,
     **AUTOMATION_HANDLERS,
-    **FEDERATION_INITIATE_HANDLERS,
 }
 
 
