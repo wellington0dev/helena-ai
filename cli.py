@@ -64,6 +64,60 @@ def dim(t): return _c(t, "2")
 def bold(t): return _c(t, "1")
 
 
+# ---------- decoração (banner, cabeçalhos de seção, spinner) ----------
+def _box(lines: list[str], color_code: str = "35") -> str:
+    """Caixa com bordas — a largura é calculada ANTES de colorir (um código
+    ANSI conta como caractere pro len(), coloria por linha desalinharia)."""
+    width = max(len(line) for line in lines) + 2
+    top = "╭" + "─" * width + "╮"
+    bottom = "╰" + "─" * width + "╯"
+    middle = [f"│ {line.ljust(width - 1)}│" for line in lines]
+    body = "\n".join([top, *middle, bottom])
+    return _c(body, color_code) if _TTY else body
+
+
+def _banner() -> str:
+    return _box([
+        "H E L E N A",
+        "assistente pessoal — Gemini ou modelo local",
+    ])
+
+
+def _section(title: str) -> None:
+    """Cabeçalho de uma seção com várias linhas (doctor, models list, etc.)
+    — uma linha só, não compete por espaço vertical com o conteúdo."""
+    filler = "─" * max(2, 44 - len(title))
+    print(bold(f"── {title} {filler}"))
+
+
+_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+class _Spinner:
+    """Spinner de terminal pra esperas com polling (health check, etc.).
+    Sem TTY (log/pipe), vira só uma linha estática — nunca spamma um pipe
+    com \\r repetido."""
+
+    def __init__(self, label: str):
+        self.label = label
+        self._frame = 0
+        if not _TTY:
+            print(dim(f"{label}..."))
+
+    def tick(self) -> None:
+        if not _TTY:
+            return
+        frame = _SPINNER_FRAMES[self._frame % len(_SPINNER_FRAMES)]
+        sys.stdout.write(f"\r{_c(frame, '36')} {self.label}...")
+        sys.stdout.flush()
+        self._frame += 1
+
+    def stop(self, final_line: str) -> None:
+        if _TTY:
+            sys.stdout.write("\r" + " " * (len(self.label) + 14) + "\r")
+        print(final_line)
+
+
 # ---------- gerência do .env ----------
 # implementação real em env_file.py (compartilhada com o blueprint web) —
 # aqui só amarra ao caminho ENV/ENV_EXAMPLE deste processo
@@ -326,6 +380,7 @@ def cmd_config(args) -> int:
         if not vals:
             print(dim("Nenhuma variável configurada (rode 'helena setup')."))
             return 0
+        _section("Configuração (.env)")
         for key, val in vals.items():
             shown = mask(val) if key in SECRET_KEYS else val
             print(f"  {bold(key)}={shown}")
@@ -393,18 +448,19 @@ def cmd_start(args) -> int:
         spawn_kwargs["start_new_session"] = True
     proc = subprocess.Popen([_server_python(), str(RUN_PY)], **spawn_kwargs)
     PID_FILE.write_text(str(proc.pid))
-    print(dim(f"iniciando (pid {proc.pid}) na porta {port}..."))
+    spin = _Spinner(f"iniciando (pid {proc.pid}) na porta {port}")
     for _ in range(40):  # ~20s
+        spin.tick()
         if proc.poll() is not None:
-            print(err("✗ o servidor saiu logo ao subir. Últimas linhas do log:"))
+            spin.stop(err("✗ o servidor saiu logo ao subir. Últimas linhas do log:"))
             _print_log_tail(20)
             PID_FILE.unlink(missing_ok=True)
             return 1
         if health_ok(port):
-            print(ok(f"✓ rodando em http://localhost:{port}  (pid {proc.pid})"))
+            spin.stop(ok(f"✓ rodando em http://localhost:{port}  (pid {proc.pid})"))
             return 0
         time.sleep(0.5)
-    print(warn("Subiu mas /health ainda não respondeu. Veja 'helena logs'."))
+    spin.stop(warn("Subiu mas /health ainda não respondeu. Veja 'helena logs'."))
     return 0
 
 
@@ -673,6 +729,7 @@ def cmd_doctor(args) -> int:
         mark = ok("✓") if good else err("✗")
         print(f"  {mark} {label}{('  ' + dim(extra)) if extra else ''}")
 
+    _section("Diagnóstico")
     line(bool(shutil.which("uv")), "uv instalado", "" if shutil.which("uv") else "instale: https://astral.sh/uv")
     venv_py = Path(_server_python())
     line(venv_py.exists() and ".venv" in str(venv_py), "ambiente (.venv) criado", "" if venv_py.exists() else "rode 'uv sync'")
@@ -722,6 +779,7 @@ def cmd_models(args) -> int:
             return 1
 
     if action == "list":
+        _section("Modelos locais (Ollama)")
         hw = local_models.detect_hardware()
         installed = _ollama_list_installed()
         active = read_env_values().get("OLLAMA_MODEL")
@@ -952,7 +1010,7 @@ def cmd_users(args) -> int:
         if not rows:
             print(dim("Nenhum usuário cadastrado."))
             return 0
-        print(bold("Usuários:"))
+        _section("Usuários")
         for uid, uname, email, name, principal, full in rows:
             label = email or f"{uname} (sem email — conta antiga)"
             if name:
@@ -1086,12 +1144,14 @@ def _service_action(action: str) -> None:  # start | stop | restart
 
 def _wait_health() -> int:
     port = env_port()
+    spin = _Spinner("aguardando /health")
     for _ in range(30):
+        spin.tick()
         if health_ok(port):
-            print(ok(f"✓ no ar em http://localhost:{port}"))
+            spin.stop(ok(f"✓ no ar em http://localhost:{port}"))
             return 0
         time.sleep(0.5)
-    print(warn("iniciado, mas /health ainda não respondeu. Veja 'helena logs'."))
+    spin.stop(warn("iniciado, mas /health ainda não respondeu. Veja 'helena logs'."))
     return 0
 
 
@@ -1309,7 +1369,7 @@ def cmd_audit(args) -> int:
     if not rows:
         print(dim("Nenhuma ação registrada ainda."))
         return 0
-    print(bold(f"Últimas {len(rows)} ações executadas:"))
+    _section(f"Últimas {len(rows)} ações")
     for ts, kind, code, detail in rows:
         rc = "" if code is None else dim(f" rc={code}")
         detail = (detail or "").replace("\n", " ⏎ ")
@@ -1374,68 +1434,68 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="helena", description="Gerencia o servidor da Helena.")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sp = sub.add_parser("setup", help="configurar variáveis de ambiente (interativo)")
+    sp = sub.add_parser("setup", help="🛠️  configurar variáveis de ambiente (interativo)")
     sp.add_argument("--advanced", action="store_true", help="também pergunta modelos/voz")
     sp.set_defaults(func=cmd_setup)
 
-    cf = sub.add_parser("config", help="ler/gravar variáveis sem interação")
+    cf = sub.add_parser("config", help="⚙️  ler/gravar variáveis sem interação")
     cf.add_argument("action", nargs="?", choices=["list", "get", "set"], default=None)
     cf.add_argument("key", nargs="?")
     cf.add_argument("value", nargs="?")
     cf.set_defaults(func=cmd_config)
 
-    sub.add_parser("start", help="iniciar o servidor em background").set_defaults(func=cmd_start)
-    sub.add_parser("stop", help="parar o servidor").set_defaults(func=cmd_stop)
-    sub.add_parser("restart", help="reiniciar o servidor").set_defaults(func=cmd_restart)
-    sub.add_parser("status", help="ver se está rodando").set_defaults(func=cmd_status)
+    sub.add_parser("start", help="▶️  iniciar o servidor em background").set_defaults(func=cmd_start)
+    sub.add_parser("stop", help="⏹️  parar o servidor").set_defaults(func=cmd_stop)
+    sub.add_parser("restart", help="🔁 reiniciar o servidor").set_defaults(func=cmd_restart)
+    sub.add_parser("status", help="📊 ver se está rodando").set_defaults(func=cmd_status)
 
-    lg = sub.add_parser("logs", help="ver o log do servidor")
+    lg = sub.add_parser("logs", help="📜 ver o log do servidor")
     lg.add_argument("-f", "--follow", action="store_true", help="acompanhar em tempo real")
     lg.add_argument("-n", "--lines", type=int, default=60, help="quantas linhas mostrar")
     lg.set_defaults(func=cmd_logs)
 
-    up = sub.add_parser("update", help="atualizar: 'git' (puxa do remoto) ou 'code' (aplica mudanças locais)")
+    up = sub.add_parser("update", help="⬆️  atualizar: 'git' (puxa do remoto) ou 'code' (aplica mudanças locais)")
     up.add_argument("action", nargs="?", choices=["git", "code"], default=None)
     up.set_defaults(func=cmd_update)
 
-    sub.add_parser("test", help="rodar em primeiro plano p/ testar antes de instalar (Ctrl+C para)").set_defaults(func=cmd_test)
+    sub.add_parser("test", help="🧪 rodar em primeiro plano p/ testar antes de instalar (Ctrl+C para)").set_defaults(func=cmd_test)
 
-    sv = sub.add_parser("service", help="instalar/gerir como serviço do sistema (sobe no login)")
+    sv = sub.add_parser("service", help="🧰 instalar/gerir como serviço do sistema (sobe no login)")
     sv.add_argument("action", nargs="?", choices=["install", "uninstall", "status", "start", "stop", "restart"], default=None)
     sv.set_defaults(func=cmd_service)
 
-    au = sub.add_parser("autoupdate", help="ligar/desligar auto-update diário (git)")
+    au = sub.add_parser("autoupdate", help="🔄 ligar/desligar auto-update diário (git)")
     au.add_argument("action", nargs="?", choices=["on", "off"], default=None)
     au.set_defaults(func=cmd_autoupdate)
 
-    ad = sub.add_parser("audit", help="ver o que a Helena executou (shell/desktop)")
+    ad = sub.add_parser("audit", help="📋 ver o que a Helena executou (shell/desktop)")
     ad.add_argument("-n", "--lines", type=int, default=40, help="quantas ações mostrar")
     ad.set_defaults(func=cmd_audit)
 
-    bk = sub.add_parser("backup", help="snapshot do banco (data/backups/)")
+    bk = sub.add_parser("backup", help="💾 snapshot do banco (data/backups/)")
     bk.add_argument("--keep", type=int, default=10, help="quantos backups manter")
     bk.set_defaults(func=cmd_backup)
 
     sub.add_parser("panic", help="🛑 revogar TODAS as permissões (kill switch)").set_defaults(func=cmd_panic)
 
-    sub.add_parser("doctor", help="checar pré-requisitos e estado").set_defaults(func=cmd_doctor)
+    sub.add_parser("doctor", help="🩺 checar pré-requisitos e estado").set_defaults(func=cmd_doctor)
 
-    md = sub.add_parser("models", help="gerenciar modelos locais (Ollama): listar/trocar/baixar/remover")
+    md = sub.add_parser("models", help="🧠 gerenciar modelos locais (Ollama): listar/trocar/baixar/remover")
     md.add_argument("action", nargs="?", choices=["list", "use", "pull", "remove"], default=None)
     md.add_argument("name", nargs="?", help="nome/tag do modelo (ex.: qwen2.5:7b)")
     md.set_defaults(func=cmd_models)
 
-    pv = sub.add_parser("provider", help="trocar o cérebro da Helena entre 'gemini' (nuvem) e 'ollama' (local)")
+    pv = sub.add_parser("provider", help="🔀 trocar o cérebro da Helena entre 'gemini' (nuvem) e 'ollama' (local)")
     pv.add_argument("name", nargs="?", choices=["gemini", "ollama"], default=None)
     pv.set_defaults(func=cmd_provider)
 
-    us = sub.add_parser("users", help="listar usuários, definir permissão, ou atribuir email a conta antiga")
+    us = sub.add_parser("users", help="👥 listar usuários, definir permissão, ou atribuir email a conta antiga")
     us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "email"], default=None)
     us.add_argument("identifier", nargs="?", help="email (ou username antigo)")
     us.add_argument("value", nargs="?", help="novo email — só usado com a ação 'email'")
     us.set_defaults(func=cmd_users)
 
-    ch = sub.add_parser("chat", help="chat em texto no terminal (login por email+senha)")
+    ch = sub.add_parser("chat", help="💬 chat em texto no terminal (login por email+senha)")
     ch.add_argument("--server", help="URL da Helena (default: http://127.0.0.1:<HELENA_PORT>)")
     ch.add_argument("--logout", action="store_true", help="apaga a sessão local salva e sai")
     ch.set_defaults(func=cmd_chat)
@@ -1443,7 +1503,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    raw = sys.argv[1:] if argv is None else argv
+    parser = build_parser()
+
+    if not raw:
+        # sem comando: banner + ajuda completa, sem parecer um erro (exit 0)
+        print(_banner())
+        print()
+        parser.print_help()
+        return 0
+    if raw[0] in ("-h", "--help"):
+        print(_banner())
+        print()
+        # cai no parse_args abaixo, que imprime a ajuda de verdade e sai
+
+    args = parser.parse_args(raw)
     try:
         return args.func(args)
     except KeyboardInterrupt:
