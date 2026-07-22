@@ -14,6 +14,9 @@ from app.agent.desktop_tools import (
     DESKTOP_INPUT_DECLS, DESKTOP_VIEW_DECLS, DESKTOP_HANDLERS,
 )
 from app.agent.command_library import BUSCAR_COMANDO_DECL, buscar_comando
+from app.agent.dashboard_tools import (
+    ABRIR_DASHBOARD_DECL, FECHAR_DASHBOARD_DECL, abrir_dashboard, fechar_dashboard,
+)
 from app.agent.network_tools import (
     LISTAR_DISPOSITIVOS_REDE_DECL, LISTAR_DISPOSITIVOS_USB_DECL,
     listar_dispositivos_rede, listar_dispositivos_usb,
@@ -289,7 +292,10 @@ _PRINCIPAL_DECLS = [
     SSH_EXECUTAR_DECL, LISTAR_DISPOSITIVOS_REDE_DECL, LISTAR_DISPOSITIVOS_USB_DECL,
     *DESKTOP_VIEW_DECLS, *AUTOMATION_EXEC_DECLS,
 ]
-_FULL_DECLS = [*DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL]
+_FULL_DECLS = [
+    *DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL,
+    ABRIR_DASHBOARD_DECL, FECHAR_DASHBOARD_DECL,
+]
 
 # conjunto completo (default / retrocompat p/ quem não passa user)
 TOOL_DECLARATIONS = types.Tool(
@@ -410,6 +416,8 @@ _HANDLERS = {
     "executar_ssh": executar_ssh,
     "listar_dispositivos_rede": listar_dispositivos_rede,
     "listar_dispositivos_usb": listar_dispositivos_usb,
+    "abrir_dashboard": abrir_dashboard,
+    "fechar_dashboard": fechar_dashboard,
     **DESKTOP_HANDLERS,
     **AUTOMATION_HANDLERS,
 }

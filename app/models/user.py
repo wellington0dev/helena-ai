@@ -40,6 +40,10 @@ class User(db.Model):
     # também pode navegar com mudar_diretorio. None = home do usuário.
     working_dir = db.Column(db.Text, nullable=True)
     created_at = db.Column(UtcDateTime, default=_utcnow, nullable=False)
+    # atualizado a cada requisição autenticada (ver app/__init__.py::_load_user)
+    # — usado pelo painel de desktop pra saber quem está "ativo". None =
+    # nunca autenticou desde que essa coluna existe.
+    last_seen_at = db.Column(UtcDateTime, nullable=True)
 
     def set_password(self, raw: str) -> None:
         self.password_hash = bcrypt.hashpw(
@@ -60,4 +64,5 @@ class User(db.Model):
             "notif_prefs": self.notif_prefs,
             "default_browser": self.default_browser,
             "created_at": self.created_at.isoformat(),
+            "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
         }

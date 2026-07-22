@@ -17,3 +17,7 @@ data/
 instance/
 .env
 .claude
+
+# Painel Electron (desktop-dashboard/) — instalado à parte via npm install
+node_modules/
+desktop-dashboard/package-lock.json

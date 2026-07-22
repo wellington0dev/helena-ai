@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helena — Painel</title>
+<link rel="stylesheet" href="/static/webui.css">
+<link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- ---------- login (mesmo fluxo da página principal) ---------- -->
+<div id="login-screen" class="screen">
+  <form id="login-form" class="login-card">
+    <h1>Helena</h1>
+    <p class="dim">painel — entre com sua conta</p>
+    <label>Email
+      <input type="email" id="login-email" required autocomplete="email">
+    </label>
+    <label>Senha
+      <input type="password" id="login-password" required autocomplete="current-password">
+    </label>
+    <button type="submit">Entrar</button>
+    <p id="login-error" class="error" hidden></p>
+  </form>
+</div>
+
+<!-- ---------- painel ---------- -->
+<div id="app-screen" class="screen" hidden>
+  <header class="topbar">
+    <div class="brand">Helena — Painel</div>
+    <span id="last-update" class="dim"></span>
+    <div class="topbar-right">
+      <span id="user-name" class="dim"></span>
+      <button id="logout-btn" class="ghost">Sair</button>
+    </div>
+  </header>
+
+  <main class="dash-scroll">
+    <section class="dash-system">
+      <div class="gauge-card">
+        <div class="gauge-label">CPU</div>
+        <div class="gauge-bar"><div id="gauge-cpu" class="gauge-fill"></div></div>
+        <div id="gauge-cpu-text" class="gauge-text dim"></div>
+      </div>
+      <div class="gauge-card">
+        <div class="gauge-label">Memória</div>
+        <div class="gauge-bar"><div id="gauge-mem" class="gauge-fill"></div></div>
+        <div id="gauge-mem-text" class="gauge-text dim"></div>
+      </div>
+      <div class="gauge-card">
+        <div class="gauge-label">Disco</div>
+        <div class="gauge-bar"><div id="gauge-disk" class="gauge-fill"></div></div>
+        <div id="gauge-disk-text" class="gauge-text dim"></div>
+      </div>
+    </section>
+
+    <h2 class="dash-h2">Sessões</h2>
+    <div id="grid-sessions" class="dash-grid"></div>
+
+    <h2 class="dash-h2">Processos do sistema</h2>
+    <div class="proc-table-wrap">
+      <table class="proc-table">
+        <thead><tr><th>PID</th><th>Nome</th><th>CPU %</th><th>Mem %</th></tr></thead>
+        <tbody id="proc-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -40,7 +40,8 @@ Body: `{"email": str, "password": str}`.
 - `200` → `{"access_token": "<jwt>", "user": {...}}`
 
 O `user` devolvido em ambas: `{"id", "name", "email", "push_registered",
-"notif_prefs", "default_browser", "created_at"}`.
+"notif_prefs", "default_browser", "created_at", "last_seen_at"}`.
+`last_seen_at` é atualizado a cada requisição autenticada (qualquer rota 🔒).
 
 O token não expira em pouco tempo (30 dias) — guarde e reuse; não há refresh
 token, faça login de novo quando expirar (`401` em qualquer rota 🔒).
@@ -189,6 +190,21 @@ espera a decisão do usuário por aqui.
     pra confiar em qualquer um dos dois, dedupe pelo `id` da mensagem.
   - O texto do comando nunca é enviado pelo cliente — é o que já foi
     registrado no servidor pra esse `cmd_id`.
+
+## Painel (`/dashboard`)
+
+Dados pro painel de desktop (Electron) — ou qualquer cliente que queira
+montar seu próprio monitoramento. **Requer nível `principal`+** (não
+qualquer usuário logado — `403` pra conta `normal`): expõe atividade de
+OUTROS usuários e processos do sistema operacional, informação mais
+sensível que "minhas próprias configurações".
+
+- `GET /dashboard/overview` 🔒 → `{"users": [...], "jobs": [...], "system": {...}, "processes": [...]}`
+  - `users`: `[{"id","name","email","is_principal","shell_full_control","last_seen_at","active_jobs"}]` — todos os usuários, `active_jobs` = contagem de `Job` com status `pending`/`running` daquele usuário.
+  - `jobs`: `[{"id","user_id","type","title","status","created_at"}]` — só jobs `pending`/`running` (não histórico); `title` é um resumo curto do payload (não o payload inteiro).
+  - `system`: `{"cpu_percent", "memory": {"used","total","percent"}, "disk": {"used","total","percent"}}` — qualquer chave pode vir `null` se a métrica falhar nesse ambiente (best-effort, nunca quebra a rota inteira).
+  - `processes`: `[{"pid","name","cpu_percent","memory_percent"}]` — top 20 processos do SO por CPU.
+- Painel é **só leitura** — nenhuma ação (matar processo, cancelar job) por essa rota.
 
 ## Configuração (`/settings`)
 

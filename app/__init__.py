@@ -12,11 +12,23 @@ def _register_jwt_callbacks() -> None:
     """Faz `@jwt_required()` retornar 401 quando o token é válido mas o usuário
     não existe mais (ex.: conta apagada). Sem isto, um token órfão dá histórico
     vazio + 500 no envio, em vez de mandar o app de volta ao login."""
+    from app.agenda.timeutil import now_utc
+    from app.extensions import write_lock
     from app.models import User
 
     @jwt.user_lookup_loader
     def _load_user(_jwt_header, jwt_data):
-        return db.session.get(User, int(jwt_data["sub"]))
+        user = db.session.get(User, int(jwt_data["sub"]))
+        if user is not None:
+            # "última vez visto" pro painel de desktop — best-effort, uma
+            # requisição autenticada não pode falhar por causa disso.
+            try:
+                with write_lock:
+                    user.last_seen_at = now_utc()
+                    db.session.commit()
+            except Exception:  # noqa: BLE001
+                db.session.rollback()
+        return user
 
     @jwt.user_lookup_error_loader
     def _user_not_found(_jwt_header, _jwt_data):
@@ -55,6 +67,7 @@ def create_app(config_object: type = Config) -> Flask:
     from app.blueprints.auth import auth_bp
     from app.blueprints.chat import chat_bp
     from app.blueprints.commands import commands_bp
+    from app.blueprints.dashboard import dashboard_bp
     from app.blueprints.library import library_bp
     from app.blueprints.media import media_bp
     from app.blueprints.reminders import reminders_bp
@@ -68,6 +81,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(commands_bp)
     app.register_blueprint(library_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(dashboard_bp)
 
     with app.app_context():
         db.create_all()
@@ -84,6 +98,13 @@ def create_app(config_object: type = Config) -> Flask:
     @app.get("/")
     def webui():
         return send_from_directory(app.static_folder, "index.html")
+
+    # painel de desktop (Electron carrega essa rota numa janela nativa) —
+    # mesmo espírito da "/" acima: arquivo estático puro, fala com a API
+    # via fetch(), nada renderizado no servidor.
+    @app.get("/dashboard")
+    def dashboard_page():
+        return send_from_directory(app.static_folder, "dashboard.html")
 
     return app
 
@@ -113,6 +134,9 @@ def _ensure_columns() -> None:
         db.session.commit()
     if "working_dir" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN working_dir TEXT"))
+        db.session.commit()
+    if "last_seen_at" not in cols:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN last_seen_at DATETIME"))
         db.session.commit()
     # federação removida: a coluna órfã `federation_paused` é NOT NULL e, sem o
     # model preenchê-la, quebraria todo INSERT de usuário novo. Dropa se existir.

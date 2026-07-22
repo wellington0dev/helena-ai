@@ -1,0 +1,91 @@
+/* Estilos específicos do painel — reusa as variáveis de cor de webui.css
+   (carregado antes deste arquivo no <head>), só acrescenta grid/gauge/tabela. */
+
+#app-screen { display: flex; flex-direction: column; }
+.topbar { justify-content: space-between; }
+.dash-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.dash-h2 { margin: 0; font-size: 1rem; color: var(--text-dim); font-weight: 600; }
+
+/* ---------- gauges de sistema ---------- */
+.dash-system {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+.gauge-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+}
+.gauge-label { font-weight: 600; margin-bottom: 0.5rem; }
+.gauge-bar {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--bubble-assistant);
+  overflow: hidden;
+}
+.gauge-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--ok);
+  transition: width 0.4s ease, background 0.4s ease;
+}
+.gauge-fill.warn { background: var(--warn); }
+.gauge-fill.danger { background: var(--danger); }
+.gauge-text { margin-top: 0.4rem; font-size: 0.8rem; }
+
+/* ---------- grid de sessões (usuário + job) ---------- */
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+.session-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.session-card.job { border-left: 3px solid var(--accent); }
+.session-card.user { border-left: 3px solid var(--ok); }
+.session-card .title { font-weight: 600; display: flex; align-items: center; gap: 0.4rem; }
+.session-card .meta { font-size: 0.8rem; color: var(--text-dim); }
+.session-empty { color: var(--text-dim); font-size: 0.9rem; }
+
+/* ---------- tabela de processos ---------- */
+.proc-table-wrap {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: 360px;
+}
+.proc-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.proc-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.proc-table td { padding: 0.4rem 0.8rem; border-bottom: 1px solid var(--border); }
+.proc-table tr:last-child td { border-bottom: none; }
+
+@media (max-width: 640px) {
+  .dash-scroll { padding: 0.8rem; }
+}

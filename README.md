@@ -126,6 +126,34 @@ Mesmo nível de acesso do chat: qualquer usuário logado pode ver/mudar a
 configuração (segredos como a chave do Gemini nunca voltam em texto puro pro
 navegador, só mascarados).
 
+## Painel de desktop (Electron)
+
+Uma janela nativa — grid com usuários ativos e jobs em segundo plano da
+Helena, mais CPU/RAM/disco e os processos do sistema operacional. É uma
+casca **fina**: só abre uma janela apontando pra `/dashboard` (a própria
+Helena serve a página e os dados via API) — nenhuma lógica mora no lado
+Electron.
+
+Instalação (não é feita pelo `install.sh`/`install.ps1` — é opcional e
+precisa de Node.js/npm, únicos neste projeto):
+
+```bash
+cd desktop-dashboard
+npm install
+```
+
+Depois disso, peça pra Helena no chat: **"abre o painel"** / **"fecha o
+painel"** (tools `abrir_dashboard`/`fechar_dashboard`, mesmo nível de
+permissão de mouse/teclado — exige `fullcontrol`). Pra abrir manualmente sem
+passar pela IA: `cd desktop-dashboard && npm start -- --url
+http://127.0.0.1:<porta>/dashboard`.
+
+Login é o mesmo `email`/senha de sempre — a janela do Electron tem seu
+próprio perfil, então pede login na primeira vez e lembra depois. O painel
+em si (`/dashboard`, `GET /dashboard/overview`) exige nível `principal`+
+pra acessar (mostra atividade de outros usuários e processos do SO —
+informação mais sensível que "minhas próprias configurações").
+
 ## `helena goal` — dê um propósito, a Helena pesquisa/planeja/implementa
 
 ```bash

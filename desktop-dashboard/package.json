@@ -1,0 +1,13 @@
+{
+  "name": "helena-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Casca Electron do painel de desktop da Helena — só abre uma janela apontando pra /dashboard do servidor Flask; nenhuma lógica de dado mora aqui.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}
