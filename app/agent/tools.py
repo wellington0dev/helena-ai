@@ -14,11 +14,16 @@ from app.agent.desktop_tools import (
     DESKTOP_INPUT_DECLS, DESKTOP_VIEW_DECLS, DESKTOP_HANDLERS,
 )
 from app.agent.command_library import BUSCAR_COMANDO_DECL, buscar_comando
+from app.agent.network_tools import (
+    LISTAR_DISPOSITIVOS_REDE_DECL, LISTAR_DISPOSITIVOS_USB_DECL,
+    listar_dispositivos_rede, listar_dispositivos_usb,
+)
 from app.agent.project_memory import PROJETO_DECL, projeto
 from app.agent.sandbox import EXECUTAR_CODIGO_DECL, executar_codigo
 from app.agent.shell_tool import (
     EXECUTAR_SHELL_DECL, MUDAR_DIRETORIO_DECL, executar_shell, mudar_diretorio, shell_level,
 )
+from app.agent.ssh_tool import SSH_EXECUTAR_DECL, executar_ssh
 from app.extensions import db, write_lock
 from app.models import AiNote, UserProfile
 
@@ -281,6 +286,7 @@ INICIAR_TAREFA_COMPUTADOR_DECL = types.FunctionDeclaration(
 _BASE_DECLS = _CHAT_BASE_DECLS + AUTOMATION_MANAGE_DECLS + [EXECUTAR_CODIGO_DECL]
 _PRINCIPAL_DECLS = [
     EXECUTAR_SHELL_DECL, MUDAR_DIRETORIO_DECL, BUSCAR_COMANDO_DECL, PROJETO_DECL,
+    SSH_EXECUTAR_DECL, LISTAR_DISPOSITIVOS_REDE_DECL, LISTAR_DISPOSITIVOS_USB_DECL,
     *DESKTOP_VIEW_DECLS, *AUTOMATION_EXEC_DECLS,
 ]
 _FULL_DECLS = [*DESKTOP_INPUT_DECLS, INICIAR_TAREFA_COMPUTADOR_DECL]
@@ -401,6 +407,9 @@ _HANDLERS = {
     "buscar_comando": buscar_comando,
     "projeto": projeto,
     "executar_codigo": executar_codigo,
+    "executar_ssh": executar_ssh,
+    "listar_dispositivos_rede": listar_dispositivos_rede,
+    "listar_dispositivos_usb": listar_dispositivos_usb,
     **DESKTOP_HANDLERS,
     **AUTOMATION_HANDLERS,
 }

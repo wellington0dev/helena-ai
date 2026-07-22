@@ -140,3 +140,36 @@ def _ensure_columns() -> None:
                 text("ALTER TABLE notification_queue ADD COLUMN desktop_notified BOOLEAN NOT NULL DEFAULT 0")
             )
             db.session.commit()
+    if "shell_commands" in insp.get_table_names():
+        sccols = {c["name"] for c in insp.get_columns("shell_commands")}
+        if "target_host" not in sccols:
+            db.session.execute(text("ALTER TABLE shell_commands ADD COLUMN target_host TEXT"))
+            db.session.commit()
+    if "shell_approvals" in insp.get_table_names():
+        sacols = {c["name"] for c in insp.get_columns("shell_approvals")}
+        if "target_host" not in sacols:
+            # SQLite não deixa trocar uma UNIQUE constraint com ALTER TABLE — o
+            # índice de uma constraint de tabela é "automático" e não pode ser
+            # dropado sozinho (testado: "index associated with UNIQUE or
+            # PRIMARY KEY constraint cannot be dropped"). Único jeito é recriar
+            # a tabela com o shape novo. `target_host` NOT NULL DEFAULT '' (não
+            # NULL) de propósito: NULL não conta como "igual" a NULL numa
+            # UNIQUE constraint, o que deixaria passar aprovações locais
+            # duplicadas.
+            db.session.execute(text("ALTER TABLE shell_approvals RENAME TO shell_approvals_old"))
+            db.session.execute(text(
+                "CREATE TABLE shell_approvals ("
+                "id INTEGER PRIMARY KEY, "
+                "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+                "command TEXT NOT NULL, "
+                "target_host TEXT NOT NULL DEFAULT '', "
+                "created_at DATETIME NOT NULL, "
+                "CONSTRAINT uq_user_command_host UNIQUE (user_id, command, target_host))"
+            ))
+            db.session.execute(text(
+                "INSERT INTO shell_approvals (id, user_id, command, target_host, created_at) "
+                "SELECT id, user_id, command, '', created_at FROM shell_approvals_old"
+            ))
+            db.session.execute(text("DROP TABLE shell_approvals_old"))
+            db.session.execute(text("CREATE INDEX ix_shell_approvals_user_id ON shell_approvals(user_id)"))
+            db.session.commit()

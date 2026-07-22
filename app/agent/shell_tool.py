@@ -12,6 +12,7 @@ fechado (não trava em prompts), timeout matando o grupo de processos, saída
 limitada, cwd = home do usuário, e log de auditoria de tudo que roda.
 """
 import os
+import shutil
 import subprocess
 from contextvars import ContextVar
 from pathlib import Path
@@ -213,9 +214,70 @@ def run_shell(command: str, cwd: str | None = None) -> dict:
     }
 
 
-def _output_text(command: str, result: dict) -> str:
+def run_remote(host: str, command: str) -> dict:
+    """Roda `command` em OUTRA máquina via SSH, usando as chaves/agente já
+    configurados na conta do usuário que roda o servidor — nunca uma senha.
+    Mesmo shape de retorno de `run_shell`. Nunca levanta."""
+    cfg = current_app.config
+    connect_timeout = cfg["SSH_CONNECT_TIMEOUT_SECONDS"]
+    timeout = cfg["SSH_TIMEOUT_SECONDS"]
+    max_out = cfg["SHELL_MAX_OUTPUT"]
+
+    if not shutil.which("ssh"):
+        return {"exit_code": None, "stdout": "", "stderr": "ssh não encontrado nesta máquina", "timeout": False}
+
+    ssh_cmd = [
+        "ssh",
+        "-o", "BatchMode=yes",  # nunca pede senha/passphrase — falha na hora se não tiver chave
+        "-o", f"ConnectTimeout={connect_timeout}",
+        "-o", "StrictHostKeyChecking=accept-new",  # aceita host novo, mas rejeita chave que MUDOU
+        host, "--", command,
+    ]
+    kwargs = dict(
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+    )
+    if IS_WIN:
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+
+    try:
+        proc = subprocess.Popen(ssh_cmd, **kwargs)
+    except Exception as exc:  # noqa: BLE001
+        return {"exit_code": None, "stdout": "", "stderr": f"falha ao iniciar ssh: {exc}", "timeout": False}
+
+    try:
+        out, err = proc.communicate(timeout=connect_timeout + timeout)
+        code = proc.returncode
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except Exception:  # noqa: BLE001
+            out, err = "", ""
+        err = (err or "") + f"\n[ssh morto após {timeout}s de timeout]"
+        code, timed_out = None, True
+
+    current_app.logger.info(
+        "SSH exec (host=%s rc=%s%s): %s", host, code, " TIMEOUT" if timed_out else "", command
+    )
+    return {
+        "exit_code": code,
+        "stdout": _cap(out, max_out),
+        "stderr": _cap(err, max_out),
+        "timeout": timed_out,
+    }
+
+
+def _output_text(command: str, result: dict, target_host: str | None = None) -> str:
     """Texto da mensagem de saída mostrada no chat (bloco de terminal)."""
-    parts = [f"$ {command}"]
+    prompt = f"$ ssh {target_host} -- {command}" if target_host else f"$ {command}"
+    parts = [prompt]
     if result["stdout"]:
         parts.append(result["stdout"].rstrip())
     if result["stderr"].strip():
@@ -225,15 +287,15 @@ def _output_text(command: str, result: dict) -> str:
     return "\n".join(parts)
 
 
-def _persist_output(user_id: int, command: str, result: dict) -> int:
+def _persist_output(user_id: int, command: str, result: dict, target_host: str | None = None) -> int:
     """Mensagem de saída do comando (bloco de terminal, visível no chat)."""
     with write_lock:
         msg = Message(
             user_id=user_id,
             role="tool",
-            content=_output_text(command, result),
-            tool_name="shell_output",
-            media_meta={"command": command, "exit_code": result["exit_code"]},
+            content=_output_text(command, result, target_host),
+            tool_name="ssh_output" if target_host else "shell_output",
+            media_meta={"command": command, "target_host": target_host, "exit_code": result["exit_code"]},
         )
         db.session.add(msg)
         db.session.commit()
@@ -243,11 +305,18 @@ def _persist_output(user_id: int, command: str, result: dict) -> int:
 def execute_recorded(rec: ShellCommand) -> int:
     """Executa um ShellCommand já claimado (status running) e persiste a saída.
     Atualiza status para done/error. Devolve o id da mensagem de saída (para o
-    agente reagir a ela no re-invoke)."""
-    result = run_shell(rec.command, resolve_workdir(rec.user_id))
-    out_id = _persist_output(rec.user_id, rec.command, result)
+    agente reagir a ela no re-invoke). `rec.target_host` preenchido → via SSH;
+    vazio → shell local."""
+    target_host = rec.target_host or None
+    if target_host:
+        result = run_remote(target_host, rec.command)
+    else:
+        result = run_shell(rec.command, resolve_workdir(rec.user_id))
+    out_id = _persist_output(rec.user_id, rec.command, result, target_host)
     from app import audit
-    audit.record(rec.user_id, "shell", rec.command, result["exit_code"])
+    kind = "ssh" if target_host else "shell"
+    detail = f"{target_host}: {rec.command}" if target_host else rec.command
+    audit.record(rec.user_id, kind, detail, result["exit_code"])
     with write_lock:
         rec.status = "error" if (result["timeout"] or (result["exit_code"] not in (0, None))) else "done"
         rec.stdout = result["stdout"]
@@ -284,12 +353,28 @@ def check_budget() -> str | None:
     return None
 
 
-def run_direct(user_id: int, command: str) -> dict:
+def is_approved(user_id: int, command: str, target_host: str | None = None) -> bool:
+    """'Permitir sempre' — escopado por (comando, host). `target_host` é
+    guardado como '' pra local (não NULL — ver comentário no model)."""
+    return (
+        db.session.query(ShellApproval)
+        .filter_by(user_id=user_id, command=command, target_host=target_host or "")
+        .first()
+        is not None
+    )
+
+
+def run_direct(user_id: int, command: str, target_host: str | None = None) -> dict:
     """Executa JÁ (sem card) e persiste a saída no chat + trilha de auditoria."""
-    result = run_shell(command, resolve_workdir(user_id))
-    _persist_output(user_id, command, result)
+    if target_host:
+        result = run_remote(target_host, command)
+    else:
+        result = run_shell(command, resolve_workdir(user_id))
+    _persist_output(user_id, command, result, target_host)
     from app import audit
-    audit.record(user_id, "shell", command, result["exit_code"])
+    kind = "ssh" if target_host else "shell"
+    detail = f"{target_host}: {command}" if target_host else command
+    audit.record(user_id, kind, detail, result["exit_code"])
     return {
         "ok": True,
         "executed": True,
@@ -299,19 +384,27 @@ def run_direct(user_id: int, command: str) -> dict:
     }
 
 
-def create_pending(user_id: int, command: str, motivo: str = "") -> dict:
+def create_pending(user_id: int, command: str, motivo: str = "", target_host: str | None = None) -> dict:
     """Cria o pedido de aprovação (card no chat) e devolve o sinal pending."""
+    content = (
+        f"Quero rodar um comando via SSH em `{target_host}` — você autoriza?"
+        if target_host else
+        "Quero rodar um comando na sua máquina — você autoriza?"
+    )
     with write_lock:
-        rec = ShellCommand(user_id=user_id, command=command, status="pending")
+        rec = ShellCommand(user_id=user_id, command=command, target_host=target_host, status="pending")
         db.session.add(rec)
         db.session.flush()
         cmd_id = rec.id
         req = Message(
             user_id=user_id,
             role="assistant",
-            content="Quero rodar um comando na sua máquina — você autoriza?",
+            content=content,
             tool_name="shell_request",
-            media_meta={"command": command, "cmd_id": cmd_id, "status": "pending", "motivo": motivo},
+            media_meta={
+                "command": command, "cmd_id": cmd_id, "status": "pending",
+                "motivo": motivo, "target_host": target_host,
+            },
         )
         db.session.add(req)
         db.session.flush()
@@ -344,12 +437,7 @@ def executar_shell(user_id: int, args: dict) -> dict:
         return {"ok": False, "error": budget_err}
 
     # controle absoluto ou comando exato já confiado ("permitir sempre") → roda direto
-    trusted = level == "full" or (
-        db.session.query(ShellApproval)
-        .filter_by(user_id=user_id, command=cmd)
-        .first()
-        is not None
-    )
+    trusted = level == "full" or is_approved(user_id, cmd)
     if trusted:
         return run_direct(user_id, cmd)
     # comando novo → pede permissão e PARA (o loop trata `pending_approval`)

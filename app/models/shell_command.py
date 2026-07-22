@@ -24,6 +24,9 @@ class ShellCommand(db.Model):
         index=True,
     )
     command = db.Column(db.Text, nullable=False)
+    # NULL = comando local; preenchido = executado via SSH nesse destino
+    # ('user@host', 'host', ou apelido do ~/.ssh/config)
+    target_host = db.Column(db.Text, nullable=True)
     # pending | running | done | error | denied
     status = db.Column(db.Text, nullable=False, default="pending", index=True)
     stdout = db.Column(db.Text, nullable=True)
@@ -37,6 +40,7 @@ class ShellCommand(db.Model):
         return {
             "id": self.id,
             "command": self.command,
+            "target_host": self.target_host,
             "status": self.status,
             "exit_code": self.exit_code,
             "created_at": self.created_at.isoformat(),

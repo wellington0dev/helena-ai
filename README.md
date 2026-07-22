@@ -126,6 +126,29 @@ Mesmo nível de acesso do chat: qualquer usuário logado pode ver/mudar a
 configuração (segredos como a chave do Gemini nunca voltam em texto puro pro
 navegador, só mascarados).
 
+## `helena goal` — dê um propósito, a Helena pesquisa/planeja/implementa
+
+```bash
+./helena goal "quero gerenciar as finanças do meu freelance"
+./helena goal   # sem argumento: pergunta o propósito no terminal
+```
+
+Mesmo login/sessão do `helena chat`. A Helena pesquisa o que for necessário
+(ferramentas, integrações, credenciais), monta um plano numerado e **para,
+esperando você aprovar** — só depois disso parte pra implementação de
+verdade (instalar coisas, criar automações/comandos salvos, configurar).
+Comandos no terminal: `/aguardar` (espera pesquisa/plano rodando em segundo
+plano terminar), `/aprovar` (autoriza a implementação), `/historico`, `/sair`.
+
+Cada ação sensível (shell/SSH) continua pedindo aprovação individual como em
+qualquer conversa — o card aparece **direto no terminal** (permitir uma
+vez / sempre / negar), sem precisar abrir o chat/app. Instalar uma
+integração nova (ex.: um CLI de email, um SDK) é só mais um `executar_shell`
+com aprovação — sem catálogo fixo do que ela pode tentar. Limitação honesta:
+a Helena não completa fluxos de OAuth interativos (login no Gmail pelo
+navegador, por exemplo) — ela prepara tudo em volta e pede a chave/token
+que só você tem.
+
 ## Telegram (a Helena como bot)
 
 A Helena pode virar um **bot completo no Telegram** — todas as funções do chat

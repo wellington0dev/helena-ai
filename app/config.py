@@ -94,6 +94,10 @@ class Config:
     SHELL_TIMEOUT_SECONDS = int(os.environ.get("SHELL_TIMEOUT_SECONDS", "60"))
     SHELL_MAX_OUTPUT = int(os.environ.get("SHELL_MAX_OUTPUT", "16000"))
     MAX_SHELL_PER_TURN = int(os.environ.get("MAX_SHELL_PER_TURN", "5"))
+    # tool executar_ssh (comando remoto via SSH — mesmo orçamento/aprovação do
+    # shell local, SHELL_MAX_OUTPUT/MAX_SHELL_PER_TURN acima)
+    SSH_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("SSH_CONNECT_TIMEOUT_SECONDS", "10"))
+    SSH_TIMEOUT_SECONDS = int(os.environ.get("SSH_TIMEOUT_SECONDS", "60"))
 
     # Notificação nativa do SO onde o servidor roda (além da notification_queue
     # pro app mobile) — desliga com HELENA_DESKTOP_NOTIFICATIONS=0 (ex.: VPS headless)

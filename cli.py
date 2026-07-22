@@ -1094,6 +1094,19 @@ def cmd_chat(args) -> int:
     return chat_cli.run(args, DATA_DIR, f"http://127.0.0.1:{env_port()}")
 
 
+def cmd_goal(args) -> int:
+    """Dá um propósito à Helena: ela pesquisa, planeja e (aprovado o plano)
+    implementa — mesmo login/sessão do 'helena chat'. Import tardio (usa
+    requests, via chat_cli/goal_cli)."""
+    try:
+        import goal_cli
+    except ImportError as e:
+        print(err(f"dependência faltando ({e}) — rode dentro do venv: 'uv run python cli.py goal'"))
+        return 1
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return goal_cli.run(args, DATA_DIR, f"http://127.0.0.1:{env_port()}")
+
+
 # ---------- serviço do sistema (systemd user no Linux / tarefa no Windows) ----------
 # De propósito é um serviço de USUÁRIO (não root/system): só assim ele enxerga a
 # sessão gráfica — controle de desktop (tela/mouse) morre num serviço de sistema.
@@ -1499,6 +1512,14 @@ def build_parser() -> argparse.ArgumentParser:
     ch.add_argument("--server", help="URL da Helena (default: http://127.0.0.1:<HELENA_PORT>)")
     ch.add_argument("--logout", action="store_true", help="apaga a sessão local salva e sai")
     ch.set_defaults(func=cmd_chat)
+
+    gl = sub.add_parser(
+        "goal",
+        help="🎯 dá um propósito à Helena: ela pesquisa, planeja e implementa automações",
+    )
+    gl.add_argument("purpose", nargs="?", help="descrição do propósito (ou deixa vazio pra digitar)")
+    gl.add_argument("--server", help="URL da Helena (default: http://127.0.0.1:<HELENA_PORT>)")
+    gl.set_defaults(func=cmd_goal)
     return p
 
 

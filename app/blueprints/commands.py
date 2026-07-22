@@ -32,15 +32,18 @@ def _mark_request(msg_id: int | None, status: str) -> None:
             db.session.commit()
 
 
-def _remember(user_id: int, command: str) -> None:
+def _remember(user_id: int, command: str, target_host: str | None = None) -> None:
+    """`target_host` vira '' (não NULL) no registro — ver comentário no model
+    ShellApproval sobre por que NULL não serve pra unicidade aqui."""
+    host = target_host or ""
     if (
         db.session.query(ShellApproval)
-        .filter_by(user_id=user_id, command=command)
+        .filter_by(user_id=user_id, command=command, target_host=host)
         .first()
         is None
     ):
         with write_lock:
-            db.session.add(ShellApproval(user_id=user_id, command=command))
+            db.session.add(ShellApproval(user_id=user_id, command=command, target_host=host))
             db.session.commit()
 
 
@@ -103,17 +106,21 @@ def apply_shell_decision(user_id: int, cmd_id: int, decision: str):
         rec.decided_at = now_utc()
         db.session.commit()
         command = rec.command
+        target_host = rec.target_host
         req_msg_id = rec.request_msg_id
 
     _mark_request(req_msg_id, "denied" if decision == "deny" else "allowed")
 
     if decision == "deny":
-        since_id = _persist_tool(
-            user_id, f"O usuário NEGOU a execução do comando: {command}", "shell_denied"
+        deny_text = (
+            f"O usuário NEGOU a execução via SSH em {target_host}: {command}"
+            if target_host else
+            f"O usuário NEGOU a execução do comando: {command}"
         )
+        since_id = _persist_tool(user_id, deny_text, "ssh_denied" if target_host else "shell_denied")
     else:
         if decision == "always":
-            _remember(user_id, command)
+            _remember(user_id, command, target_host)
         # execução real (comando = o gravado, nunca do cliente)
         since_id = shell_tool.execute_recorded(rec)
 
