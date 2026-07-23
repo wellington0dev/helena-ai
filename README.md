@@ -323,6 +323,45 @@ por usuário**, definidos pelo CLI:
   - ⚠️ Só funciona com o servidor rodando **na sessão gráfica logada** (não em
     VPS/headless/SSH — lá não há tela).
 
+### Dar permissão total pra Helena (fullcontrol + sudo)
+
+Pra Helena controlar a máquina por completo — qualquer comando, inclusive
+com `sudo` — são 3 passos, cada um opt-in e reversível a qualquer momento:
+
+```bash
+./helena users fullcontrol <seu-email>   # 1. roda qualquer comando de shell sem aprovação
+./helena users sudo        <seu-email>   # 2. libera sudo (pergunta: sempre pedir aprovação ou não)
+```
+
+Repare que os passos 1 e 2 usam o **email da conta na Helena**, não o
+usuário do sistema operacional. O passo 2 sozinho ainda não basta: sudo de
+verdade só funciona se a sua conta do SO já rodar `sudo` **sem pedir
+senha** — a Helena nunca digita senha nenhuma (mesma regra do SSH). Se
+ainda não tiver isso configurado, esse é o passo 3, no Linux:
+
+```bash
+# aqui é o USUÁRIO DO SISTEMA (ex.: weber), não o email
+echo "<usuario-do-so> ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/<usuario-do-so>-nopasswd > /dev/null
+sudo chmod 0440 /etc/sudoers.d/<usuario-do-so>-nopasswd
+sudo visudo -c   # tem que aparecer "parsed OK" — se der erro, apague o arquivo na hora:
+                 # sudo rm /etc/sudoers.d/<usuario-do-so>-nopasswd
+```
+
+⚠️ Isso libera sudo sem senha pra **qualquer coisa** nessa conta do
+sistema, não só pra Helena — é uma decisão de segurança da sua máquina.
+Pra um escopo mais restrito, troque `ALL` pelos comandos específicos que
+você quer liberar, por exemplo:
+```
+<usuario-do-so> ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/pacman
+```
+Confira se funcionou com `sudo -n true && echo "NOPASSWD ok"`.
+
+Com os 3 passos feitos, a Helena ainda pede aprovação no chat pra cada
+comando com `sudo` (o padrão `sudo_require_approval=1`, mais seguro). Pra
+ela rodar sudo direto sem card, rode `helena users sudo <seu-email>` de
+novo e responda "não" na pergunta de aprovação. `helena panic` revoga
+fullcontrol e sudo dos dois, de uma vez, a qualquer momento.
+
 ## Trabalho em código (diretório, comandos, memória de projeto)
 
 Para quem tem controle de shell (`principal`/`fullcontrol`), a Helena ganha
