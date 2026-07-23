@@ -31,6 +31,16 @@ class User(db.Model):
     is_principal = db.Column(db.Boolean, default=False, nullable=False)
     # controle absoluto: executa QUALQUER comando sem pedir aprovação (implica principal)
     shell_full_control = db.Column(db.Boolean, default=False, nullable=False)
+    # sudo é uma permissão À PARTE de shell_full_control — quem já confia a
+    # Helena rodando qualquer comando como si mesmo não necessariamente quer
+    # dar root de brinde. Opt-in explícito só via CLI (`helena users sudo`).
+    sudo_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    # só importa com sudo_enabled=True. True (default ao ativar) = todo
+    # comando com sudo pede aprovação SEMPRE, mesmo fullcontrol e mesmo com
+    # "permitir sempre" já concedido pra aquele comando exato — o "sempre"
+    # não vale pra sudo nesse modo, senão a 1ª aprovação desligaria a revisão
+    # de vez, o oposto do que "sempre pedir aprovação" deveria significar.
+    sudo_require_approval = db.Column(db.Boolean, default=True, nullable=False)
     # navegador preferido pra tool abrir_navegador (id do detect_browsers); None = usa o 1º instalado
     default_browser = db.Column(db.Text, nullable=True)
     # (coluna federation_paused removida junto da federação; DBs antigos podem

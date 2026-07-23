@@ -956,7 +956,8 @@ def _find_user_row(con: sqlite3.Connection, identifier: str):
 
 def _list_user_rows(con: sqlite3.Connection):
     return con.execute(
-        "SELECT id, username, email, name, is_principal, shell_full_control FROM users ORDER BY id"
+        "SELECT id, username, email, name, is_principal, shell_full_control, "
+        "sudo_enabled, sudo_require_approval FROM users ORDER BY id"
     ).fetchall()
 
 
@@ -982,7 +983,7 @@ def cmd_users(args) -> int:
     con = sqlite3.connect(str(dbp))
     con.execute("PRAGMA busy_timeout=5000")
     cols = {r[1] for r in con.execute("PRAGMA table_info(users)")}
-    if not {"is_principal", "shell_full_control", "name"} <= cols:
+    if not {"is_principal", "shell_full_control", "name", "sudo_enabled", "sudo_require_approval"} <= cols:
         print(warn("Colunas novas ainda não existem — reinicie o servidor ('helena restart') para migrar."))
         return 1
 
@@ -996,6 +997,8 @@ def cmd_users(args) -> int:
                     ("principal", "promover a principal"),
                     ("fullcontrol", "promover a controle absoluto"),
                     ("normal", "rebaixar a normal"),
+                    ("sudo", "habilitar sudo"),
+                    ("nosudo", "desabilitar sudo"),
                     ("email", "definir email de conta antiga"),
                 ],
             )
@@ -1011,7 +1014,7 @@ def cmd_users(args) -> int:
             print(dim("Nenhum usuário cadastrado."))
             return 0
         _section("Usuários")
-        for uid, uname, email, name, principal, full in rows:
+        for uid, uname, email, name, principal, full, sudo_en, sudo_appr in rows:
             label = email or f"{uname} (sem email — conta antiga)"
             if name:
                 label = f"{label}  [{name}]"
@@ -1021,9 +1024,12 @@ def cmd_users(args) -> int:
                 tag = ok("★ principal")
             else:
                 tag = dim("normal")
+            if sudo_en:
+                tag += "  " + warn("🔓 sudo" + (" (sempre pede aprovação)" if sudo_appr else " (sem aprovação extra)"))
             print(f"  {uid:>3}  {label:<40} {tag}")
         print(dim("\nNíveis: normal → principal (com aprovação) → fullcontrol (sem aprovação)."))
         print(dim("Ex.: helena users principal <email> | helena users fullcontrol <email> | helena users normal <email>"))
+        print(dim("Sudo é À PARTE: helena users sudo <email> | helena users nosudo <email>"))
         print(dim("Conta antiga sem email? helena users email <username_antigo> <novo@email.com>"))
         return 0
 
@@ -1065,6 +1071,40 @@ def cmd_users(args) -> int:
         print(err(f"usuário '{identifier}' não encontrado (veja 'helena users')"))
         return 1
     uid, uname = row
+
+    if action == "nosudo":
+        with con:
+            con.execute("UPDATE users SET sudo_enabled=0 WHERE id=?", (uid,))
+        print(ok(f"✓ sudo desabilitado pra {uname}."))
+        return 0
+
+    if action == "sudo":
+        require_approval = 1
+        if _interactive():
+            choice = select_menu(
+                "Comandos com sudo sempre devem pedir aprovação no chat?",
+                [
+                    ("yes", "sim, sempre pedir aprovação (recomendado)"),
+                    ("no", "não, seguir a regra normal de confiança"),
+                ],
+            )
+            if choice is None:
+                print(warn("cancelado."))
+                return 1
+            require_approval = 1 if choice == "yes" else 0
+        with con:
+            con.execute(
+                "UPDATE users SET sudo_enabled=1, sudo_require_approval=? WHERE id=?",
+                (require_approval, uid),
+            )
+        print(err(f"🔓 {uname} agora pode usar sudo na Helena."))
+        if require_approval:
+            print(dim("   Todo comando com sudo vai pedir aprovação no chat, mesmo em controle absoluto."))
+        else:
+            print(dim("   Comandos com sudo seguem a mesma regra de confiança do resto do shell."))
+        print(dim("   Isso só controla o que a Helena TENTA — o sudoers/NOPASSWD do sistema decide o resto."))
+        print(dim(f"   Reverta com: helena users nosudo {identifier}"))
+        return 0
 
     principal_v, full_v = {"fullcontrol": (1, 1), "principal": (1, 0), "normal": (0, 0)}[action]
     with con:
@@ -1427,8 +1467,8 @@ def cmd_panic(args) -> int:
     con.execute("PRAGMA busy_timeout=5000")
     with con:
         n_users = con.execute(
-            "UPDATE users SET is_principal=0, shell_full_control=0 "
-            "WHERE is_principal=1 OR shell_full_control=1"
+            "UPDATE users SET is_principal=0, shell_full_control=0, sudo_enabled=0 "
+            "WHERE is_principal=1 OR shell_full_control=1 OR sudo_enabled=1"
         ).rowcount
         try:
             n_cmds = con.execute(
@@ -1503,7 +1543,7 @@ def build_parser() -> argparse.ArgumentParser:
     pv.set_defaults(func=cmd_provider)
 
     us = sub.add_parser("users", help="👥 listar usuários, definir permissão, ou atribuir email a conta antiga")
-    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "email"], default=None)
+    us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "sudo", "nosudo", "email"], default=None)
     us.add_argument("identifier", nargs="?", help="email (ou username antigo)")
     us.add_argument("value", nargs="?", help="novo email — só usado com a ação 'email'")
     us.set_defaults(func=cmd_users)
@@ -1528,11 +1568,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
 
     if not raw:
-        # sem comando: banner + ajuda completa, sem parecer um erro (exit 0)
-        print(_banner())
-        print()
-        parser.print_help()
-        return 0
+        # sem comando nenhum: entra direto no chat (igual a `helena chat`) —
+        # `-h`/`--help` continua sendo o jeito de ver a lista completa de comandos.
+        args = parser.parse_args(["chat"])
+        return args.func(args)
     if raw[0] in ("-h", "--help"):
         print(_banner())
         print()

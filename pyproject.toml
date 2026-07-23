@@ -15,6 +15,7 @@ dependencies = [
     "google-genai>=2.10.0",
     "mss>=9.0.0",
     "openpyxl>=3.1.5",
+    "prompt-toolkit>=3.0.43",
     "psutil>=6.0.0",
     "pyautogui>=0.9.54",
     "python-docx>=1.2.0",

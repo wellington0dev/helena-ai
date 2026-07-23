@@ -12,6 +12,7 @@ fechado (não trava em prompts), timeout matando o grupo de processos, saída
 limitada, cwd = home do usuário, e log de auditoria de tudo que roda.
 """
 import os
+import re
 import shutil
 import subprocess
 from contextvars import ContextVar
@@ -44,7 +45,10 @@ EXECUTAR_SHELL_DECL = types.FunctionDeclaration(
         "use mudar_diretorio para navegar de forma persistente. Por segurança, o "
         "usuário PRECISA autorizar cada comando novo pelo chat — você NÃO deve "
         "assumir que rodou até receber a saída. Passe UM comando por chamada; "
-        "encadeie com && se necessário. Adapte a sintaxe ao sistema operacional."
+        "encadeie com && se necessário. Adapte a sintaxe ao sistema operacional. "
+        "Comandos com 'sudo' só funcionam se o usuário tiver habilitado sudo na "
+        "Helena (helena users sudo); se não tiver, vai ser bloqueado — não tente "
+        "contornar reescrevendo o comando."
     ),
     parameters=types.Schema(
         type=types.Type.OBJECT,
@@ -417,16 +421,49 @@ def create_pending(user_id: int, command: str, motivo: str = "", target_host: st
     }
 
 
-def executar_shell(user_id: int, args: dict) -> dict:
-    cmd = (args.get("comando") or args.get("command") or "").strip()
-    if not cmd:
-        return {"ok": False, "error": "comando vazio"}
+_SUDO_RE = re.compile(r"\bsudo\b")
 
+
+def _uses_sudo(command: str) -> bool:
+    return bool(_SUDO_RE.search(command))
+
+
+def _sudo_gate(user_id: int, command: str) -> tuple[bool, str | None]:
+    """(bloqueado, motivo). Só olha comandos com sudo; o resto passa direto."""
+    if not _uses_sudo(command):
+        return False, None
+    user = db.session.get(User, user_id)
+    if user is None or not user.sudo_enabled:
+        return True, (
+            "Este comando usa sudo, mas o usuário não tem sudo habilitado na "
+            "Helena. Explique isso e NÃO tente rodar — nem reescrever pra "
+            "disfarçar a palavra 'sudo'. Ative com 'helena users sudo <email>'."
+        )
+    return False, None
+
+
+def _sudo_forces_approval(user_id: int, command: str) -> bool:
+    if not _uses_sudo(command):
+        return False
+    user = db.session.get(User, user_id)
+    return bool(user and user.sudo_enabled and user.sudo_require_approval)
+
+
+def _decide_and_dispatch(
+    user_id: int, command: str, motivo: str = "", target_host: str | None = None
+) -> dict:
+    """Portão único de decisão (nível → orçamento → sudo → confiança), usado
+    tanto pelo shell local quanto pelo SSH — assim nenhum dos dois pode
+    esquecer de aplicar alguma dessas checagens."""
     level = shell_level(user_id)
     if level is None:
         return {
             "ok": False,
             "error": (
+                "Este usuário não tem permissão para executar comandos remotos "
+                "via SSH. Explique gentilmente que só o usuário principal pode "
+                "pedir isso, e não tente rodar nada."
+            ) if target_host else (
                 "Este usuário não tem permissão para executar comandos no "
                 "computador. Explique gentilmente que só o usuário principal "
                 "pode pedir isso, e não tente rodar nada."
@@ -435,10 +472,20 @@ def executar_shell(user_id: int, args: dict) -> dict:
     budget_err = check_budget()
     if budget_err:
         return {"ok": False, "error": budget_err}
-
-    # controle absoluto ou comando exato já confiado ("permitir sempre") → roda direto
-    trusted = level == "full" or is_approved(user_id, cmd)
+    blocked, why = _sudo_gate(user_id, command)
+    if blocked:
+        return {"ok": False, "error": why}
+    trusted = not _sudo_forces_approval(user_id, command) and (
+        level == "full" or is_approved(user_id, command, target_host)
+    )
     if trusted:
-        return run_direct(user_id, cmd)
-    # comando novo → pede permissão e PARA (o loop trata `pending_approval`)
-    return create_pending(user_id, cmd, (args.get("motivo") or "").strip())
+        return run_direct(user_id, command, target_host=target_host)
+    return create_pending(user_id, command, motivo, target_host=target_host)
+
+
+def executar_shell(user_id: int, args: dict) -> dict:
+    cmd = (args.get("comando") or args.get("command") or "").strip()
+    if not cmd:
+        return {"ok": False, "error": "comando vazio"}
+    motivo = (args.get("motivo") or "").strip()
+    return _decide_and_dispatch(user_id, cmd, motivo)

@@ -109,6 +109,36 @@ Depois de `start`, a API fica em `http://localhost:<porta>` (e na rede local
 pelo IP da máquina, já que o bind é `0.0.0.0` por padrão). Configure esse
 endereço no app Android, ou abra direto no navegador (veja abaixo).
 
+## Chat no terminal (`helena chat`)
+
+```bash
+./helena chat
+```
+
+Login por email/senha na primeira vez (sessão fica salva localmente,
+`chmod 600`). O prompt tem a mesma cara de um CLI de assistente moderno:
+
+- **Multiline de verdade**: `Enter` envia, `Alt+Enter` quebra linha sem
+  enviar — dá pra compor uma mensagem de várias linhas antes de mandar.
+- **Histórico persistente**: seta ↑/↓ navega mensagens de sessões
+  anteriores (fica em `data/cli_chat_history`), e sugestão fantasma
+  (cinza) com base no que você já digitou antes.
+- **Autocompletar**: comece a digitar `/` e os comandos disponíveis
+  aparecem.
+- **Colar grande texto**: acima de ~12 linhas/800 caracteres, o colado vira
+  um placeholder tipo `[Texto colado #1 +240 linhas]` no terminal — só pra
+  não poluir a tela; a Helena recebe o texto **completo** do mesmo jeito.
+  Use `/colado <N>` pra conferir o que tinha por trás de um placeholder.
+- **`/imagem`**: cola uma imagem da área de transferência (ex.: um
+  screenshot copiado) e anexa na sua próxima mensagem. Depende de uma
+  ferramenta de sistema pra ler o clipboard — Linux X11 precisa de
+  `xclip` (`sudo apt install xclip`/equivalente; não instalado
+  automaticamente), Linux Wayland usa `wl-paste` (já instalado pelo
+  `install.sh` junto do controle de desktop), macOS/Windows não precisam
+  instalar nada. Sem imagem no clipboard, ou sem a ferramenta, dá um aviso
+  claro — nunca trava.
+- `/historico`, `/logout`, `/sair` continuam funcionando como antes.
+
 ## Página web (chat + configuração)
 
 Abra `http://localhost:<porta>/` (ou pelo IP da máquina, na rede local) —
@@ -266,6 +296,25 @@ por usuário**, definidos pelo CLI:
   ainda aparece no chat). Rails: timeout, stdin fechado, log de auditoria, e
   `cwd` = o **diretório de trabalho atual** (veja [Trabalho em código](#trabalho-em-código-diretório-comandos-memória-de-projeto);
   cai pro home se nenhum estiver definido).
+- **sudo**: mesmo em `fullcontrol`, comandos com `sudo` são bloqueados por
+  padrão — é uma permissão **separada**, opt-in:
+  ```bash
+  ./helena users sudo   <usuario>  # 🔓 habilita sudo (pergunta se aprovação é sempre obrigatória)
+  ./helena users nosudo <usuario>  # desabilita
+  ```
+  Ao habilitar, o padrão é **sempre pedir aprovação no chat** pra qualquer
+  comando com `sudo` — inclusive em `fullcontrol` e mesmo que aquele comando
+  exato já tenha "Permitir sempre" concedido (o "sempre" não vale pra sudo
+  nesse modo). Dá pra relaxar isso (`helena users sudo` de novo, respondendo
+  "não" à pergunta) pra sudo seguir a mesma regra de confiança do resto do
+  shell. Não há lista de comandos permitidos — a proteção real é aprovação +
+  auditoria; uma allowlist textual é fácil de contornar (`sudo bash -c ...`).
+  Isso só controla o que a **Helena tenta rodar** — se o comando de fato
+  passa sem senha depende do `sudoers`/NOPASSWD já configurado no sistema
+  operacional pra essa conta; a Helena nunca lida com prompt de senha (stdin
+  fechado, como no SSH — se pedir senha, trava e falha por timeout em vez de
+  travar silenciosamente). `helena panic` revoga sudo junto com os outros
+  níveis.
 - **Desktop (tela/mouse/teclado)**: `capturar_tela` (a IA VÊ a tela) exige
   `principal`; mover/clicar/digitar exigem `fullcontrol`.
   - **Windows / Linux-X11 / macOS**: funciona direto (pyautogui/mss, via `uv sync`).

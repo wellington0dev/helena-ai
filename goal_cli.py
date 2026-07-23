@@ -15,6 +15,7 @@ from pathlib import Path
 
 import requests
 
+import cli_prompt
 from chat_cli import (
     SEND_TIMEOUT,
     ChatCliError,
@@ -36,6 +37,9 @@ from chat_cli import (
 from cli_select import select_menu
 
 _TTY = sys.stdout.isatty()
+
+HISTORY_FILENAME = "cli_goal_history"
+SLASH_COMMANDS = ["/historico", "/aguardar", "/aprovar", "/logout", "/sair"]
 
 _SEED_TEMPLATE = (
     "Quero configurar este dispositivo/minhas automações para um propósito. "
@@ -232,11 +236,11 @@ def run(args, data_dir: Path, default_base_url: str) -> int:
     purpose = (getattr(args, "purpose", None) or "").strip()
     if not purpose:
         print(bold("\nQual é o propósito? (o que você quer que a Helena configure/automatize)"))
-        try:
-            purpose = input("> ").strip()
-        except (EOFError, KeyboardInterrupt):
+        result = cli_prompt.ask("propósito", data_dir, HISTORY_FILENAME)
+        if result is None:
             print()
             return 1
+        purpose = result[0].strip()
     if not purpose:
         print(err("propósito vazio."))
         return 1
@@ -256,11 +260,12 @@ def run(args, data_dir: Path, default_base_url: str) -> int:
     ))
 
     while True:
-        try:
-            line = input(f"{bold('você>')} ").strip()
-        except (EOFError, KeyboardInterrupt):
+        toolbar = f"{who} @ {base_url}"
+        result = cli_prompt.ask("você", data_dir, HISTORY_FILENAME, SLASH_COMMANDS, toolbar)
+        if result is None:
             print()
             break
+        line = result[0].strip()
         if not line:
             continue
         if line in ("/sair", "/exit", "/quit"):

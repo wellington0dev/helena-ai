@@ -47,17 +47,18 @@ chmod +x helena
 if [ "$(uname)" = "Linux" ] && [ -n "$WAYLAND_DISPLAY" ]; then
   echo "==> Sessão Wayland detectada — configurando controle de desktop (pede sudo)..."
   ( set +e
-    # 1. pacotes: tela (grim), teclado (wtype), mouse (ydotool)
+    # 1. pacotes: tela (grim), teclado (wtype), mouse (ydotool), colar
+    #    imagem da área de transferência no chat CLI (wl-clipboard)
     if command -v pacman >/dev/null 2>&1; then
-      sudo pacman -S --needed --noconfirm grim wtype ydotool
+      sudo pacman -S --needed --noconfirm grim wtype ydotool wl-clipboard
     elif command -v apt-get >/dev/null 2>&1; then
-      sudo apt-get install -y grim wtype ydotool
+      sudo apt-get install -y grim wtype ydotool wl-clipboard
     elif command -v dnf >/dev/null 2>&1; then
-      sudo dnf install -y grim wtype ydotool
+      sudo dnf install -y grim wtype ydotool wl-clipboard
     elif command -v zypper >/dev/null 2>&1; then
-      sudo zypper install -y grim wtype ydotool
+      sudo zypper install -y grim wtype ydotool wl-clipboard
     else
-      echo "   Gerenciador de pacotes não reconhecido — instale grim, wtype e ydotool à mão."
+      echo "   Gerenciador de pacotes não reconhecido — instale grim, wtype, ydotool e wl-clipboard à mão."
     fi
     # 2. módulo de kernel uinput (necessário p/ o mouse): carrega agora e no boot
     sudo modprobe uinput

@@ -31,6 +31,12 @@ def _interactive() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
+def is_interactive() -> bool:
+    """Versão pública de `_interactive` — usada por outros módulos de CLI
+    (ex.: cli_prompt.py) que precisam do mesmo critério de fallback."""
+    return _interactive()
+
+
 def select_menu(prompt: str, options: list[tuple[str, str]], default: int = 0) -> str | None:
     """`options`: lista de (valor, rótulo). Devolve o valor escolhido, ou None
     se cancelado (Ctrl+C/Esc/EOF)."""

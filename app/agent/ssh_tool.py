@@ -10,7 +10,7 @@ o fluxo de segurança em dois lugares que podem divergir.
 """
 from google.genai import types
 
-from app.agent.shell_tool import check_budget, create_pending, is_approved, run_direct, shell_level
+from app.agent.shell_tool import _decide_and_dispatch
 
 SSH_EXECUTAR_DECL = types.FunctionDeclaration(
     name="executar_ssh",
@@ -20,7 +20,10 @@ SSH_EXECUTAR_DECL = types.FunctionDeclaration(
         "listar_dispositivos_rede antes se não souber o endereço do destino. "
         "Mesmas regras do executar_shell: o usuário PRECISA autorizar cada "
         "comando novo (a menos que seja controle absoluto); passe UM comando "
-        "por chamada; você NÃO deve assumir que rodou até receber a saída."
+        "por chamada; você NÃO deve assumir que rodou até receber a saída. "
+        "Comandos com 'sudo' só funcionam se o usuário tiver habilitado sudo "
+        "na Helena (helena users sudo); se não tiver, vai ser bloqueado — não "
+        "tente contornar reescrevendo o comando."
     ),
     parameters=types.Schema(
         type=types.Type.OBJECT,
@@ -50,22 +53,5 @@ def executar_ssh(user_id: int, args: dict) -> dict:
         return {"ok": False, "error": "host vazio"}
     if not cmd:
         return {"ok": False, "error": "comando vazio"}
-
-    level = shell_level(user_id)
-    if level is None:
-        return {
-            "ok": False,
-            "error": (
-                "Este usuário não tem permissão para executar comandos remotos. "
-                "Explique gentilmente que só o usuário principal pode pedir "
-                "isso, e não tente rodar nada."
-            ),
-        }
-    budget_err = check_budget()
-    if budget_err:
-        return {"ok": False, "error": budget_err}
-
-    trusted = level == "full" or is_approved(user_id, cmd, host)
-    if trusted:
-        return run_direct(user_id, cmd, target_host=host)
-    return create_pending(user_id, cmd, (args.get("motivo") or "").strip(), target_host=host)
+    motivo = (args.get("motivo") or "").strip()
+    return _decide_and_dispatch(user_id, cmd, motivo, target_host=host)

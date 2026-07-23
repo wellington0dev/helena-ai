@@ -138,6 +138,16 @@ def _ensure_columns() -> None:
     if "last_seen_at" not in cols:
         db.session.execute(text("ALTER TABLE users ADD COLUMN last_seen_at DATETIME"))
         db.session.commit()
+    if "sudo_enabled" not in cols:
+        db.session.execute(
+            text("ALTER TABLE users ADD COLUMN sudo_enabled BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+    if "sudo_require_approval" not in cols:
+        db.session.execute(
+            text("ALTER TABLE users ADD COLUMN sudo_require_approval BOOLEAN NOT NULL DEFAULT 1")
+        )
+        db.session.commit()
     # federação removida: a coluna órfã `federation_paused` é NOT NULL e, sem o
     # model preenchê-la, quebraria todo INSERT de usuário novo. Dropa se existir.
     if "federation_paused" in cols:
