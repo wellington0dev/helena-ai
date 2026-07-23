@@ -1542,7 +1542,7 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("name", nargs="?", choices=["gemini", "ollama"], default=None)
     pv.set_defaults(func=cmd_provider)
 
-    us = sub.add_parser("users", help="👥 listar usuários, definir permissão, ou atribuir email a conta antiga")
+    us = sub.add_parser("users", help="👥 listar usuários, definir permissão/sudo, ou atribuir email a conta antiga")
     us.add_argument("action", nargs="?", choices=["list", "principal", "fullcontrol", "normal", "sudo", "nosudo", "email"], default=None)
     us.add_argument("identifier", nargs="?", help="email (ou username antigo)")
     us.add_argument("value", nargs="?", help="novo email — só usado com a ação 'email'")
